@@ -1,28 +1,32 @@
+"""Organization model for multitenant architecture."""
+
 from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, String, Uuid, func
+from sqlalchemy import DateTime, String, Text, Uuid, func
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.architect import Architect
-    from src.db.models.conversation import Conversation
 
 
-class User(Base):
-    """User model for authentication."""
+class Organization(Base):
+    """Organization model - top level tenant entity."""
 
-    __tablename__ = "users"
+    __tablename__ = "organizations"
 
     id: Mapped[UUID] = mapped_column(
         Uuid, primary_key=True, server_default=func.gen_random_uuid(), index=True
     )
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    full_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    whatsapp_business_account_id: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, unique=True
+    )
+    settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -31,12 +35,9 @@ class User(Base):
     )
 
     # Relationships
-    conversations: Mapped[list["Conversation"]] = relationship(
-        "Conversation", back_populates="user", cascade="all, delete-orphan"
-    )
     architects: Mapped[list["Architect"]] = relationship(
-        "Architect", back_populates="user", cascade="all, delete-orphan"
+        "Architect", back_populates="organization", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
-        return f"<User(id={self.id}, email={self.email})>"
+        return f"<Organization(id={self.id}, name={self.name})>"

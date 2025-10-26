@@ -1,6 +1,6 @@
     .PHONY: help setup-docker docker-build docker-up docker-down docker-logs docker-restart \
 	docker-migrate docker-migrate-create migrate migrate-create migrate-downgrade \
-	lint-backend lint-backend-fix lint lint-fix test-up test-down test-backend test test-cov clean
+	lint-backend lint-backend-fix lint lint-fix test-up test-down test-backend test test-cov test-specific clean
 
     help: ## Show this help message
 	@echo "Available commands:"
@@ -83,6 +83,13 @@
     test-cov: ## Run backend tests with coverage
 	@echo "Running backend tests with coverage..."
 	cd app/backend && pytest --cov=src --cov-report=html --cov-report=term
+
+    test-specific: ## Run specific tests (use TESTS="test_file.py::test_name" or TESTS="test_file.py")
+	@if [ -z "$(TESTS)" ]; then \
+		echo "Error: TESTS variable is required. Usage: make test-specific TESTS=\"test_file.py\""; \
+		exit 1; \
+	fi
+	cd app/backend && pytest -v $(TESTS)
 
     clean: ## Clean backend cache and artifacts
 	@echo "Cleaning backend..."
