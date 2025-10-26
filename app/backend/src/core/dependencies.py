@@ -86,3 +86,13 @@ async def get_current_user(
     request.state.user_id = str(user_id)
 
     return user
+
+
+async def get_current_user_id(
+    current_user: Annotated[User, Depends(get_current_user)]
+) -> UUID:
+    """Dependency to get the current user's ID.
+
+    Useful for endpoints that only need the user_id, not the full user object.
+    """
+    return current_user.id
