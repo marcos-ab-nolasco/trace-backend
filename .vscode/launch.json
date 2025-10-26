@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: FastAPI Debug",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/app/backend/run.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+    },
+  ]
+}

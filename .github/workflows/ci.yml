@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint-backend:
+    name: Lint Backend
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/astral-sh/uv:python3.11-bookworm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync dependencies with uv
+        working-directory: app/backend
+        run: uv sync --extra dev
+
+      - name: Run backend lint
+        working-directory: app/backend
+        run: |
+          uv run black --check src tests --line-length 100
+          uv run ruff check src tests
+          uv run mypy src
+
+  lint-frontend:
+    name: Lint Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: app/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: app/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint
+        working-directory: app/frontend
+        run: pnpm lint:check
+
+      - name: Run TypeScript check
+        working-directory: app/frontend
+        run: pnpm type-check
+
+  test-backend:
+    name: Test Backend
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/astral-sh/uv:python3.11-bookworm
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: fullstack_test
+        options: >-
+          --health-cmd "pg_isready -U test -d fullstack_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 3
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sync dependencies with uv
+        working-directory: app/backend
+        run: uv sync --extra dev
+
+      - name: Run backend tests
+        working-directory: app/backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://test:test@postgres:5432/fullstack_test
+        run: uv run pytest -v
+
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: app/frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: app/frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend tests
+        working-directory: app/frontend
+        run: pnpm test
