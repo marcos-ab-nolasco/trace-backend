@@ -12,6 +12,7 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.architect import Architect
+    from src.db.models.whatsapp_account import WhatsAppAccount
 
 
 class Organization(Base):
@@ -37,6 +38,9 @@ class Organization(Base):
     # Relationships
     architects: Mapped[list["Architect"]] = relationship(
         "Architect", back_populates="organization", cascade="all, delete-orphan"
+    )
+    whatsapp_accounts: Mapped[list["WhatsAppAccount"]] = relationship(
+        "WhatsAppAccount", back_populates="organization", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

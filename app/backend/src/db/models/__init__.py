@@ -6,6 +6,9 @@ from src.db.models.message import Message
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
 from src.db.models.user import User
+from src.db.models.whatsapp_account import WhatsAppAccount
+from src.db.models.whatsapp_message import MessageDirection, MessageStatus, WhatsAppMessage
+from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 
 __all__ = [
     "User",
@@ -17,4 +20,10 @@ __all__ = [
     "EndClient",
     "BriefingTemplate",
     "TemplateVersion",
+    "WhatsAppAccount",
+    "WhatsAppSession",
+    "WhatsAppMessage",
+    "SessionStatus",
+    "MessageDirection",
+    "MessageStatus",
 ]

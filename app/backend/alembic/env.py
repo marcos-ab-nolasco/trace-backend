@@ -15,9 +15,9 @@ env_path = Path(__file__).parent.parent.parent.parent / ".env"
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 
-# Import Base and all models
+# Import Base and all models (importing from __init__ ensures all models are loaded)
 from src.db.session import Base
-from src.db.models import User, Conversation, Message  # noqa: F401
+from src.db.models import *  # noqa: F401, F403
 from src.core.config import get_settings
 settings = get_settings()
 

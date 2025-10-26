@@ -13,6 +13,7 @@ from src.db.session import Base
 if TYPE_CHECKING:
     from src.db.models.architect import Architect
     from src.db.models.conversation import Conversation
+    from src.db.models.whatsapp_session import WhatsAppSession
 
 
 class EndClient(Base):
@@ -44,6 +45,9 @@ class EndClient(Base):
     architect: Mapped["Architect"] = relationship("Architect", back_populates="end_clients")
     conversations: Mapped[list["Conversation"]] = relationship(
         "Conversation", back_populates="end_client", cascade="all, delete-orphan"
+    )
+    whatsapp_sessions: Mapped[list["WhatsAppSession"]] = relationship(
+        "WhatsAppSession", back_populates="end_client", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
