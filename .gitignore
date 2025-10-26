@@ -70,4 +70,4 @@ dmypy.json
 
 # Prompts
 CLAUDE.md
-historic_chat/
+AGENTS.md

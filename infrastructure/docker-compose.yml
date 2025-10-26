@@ -106,28 +106,3 @@ services:
         condition: service_healthy
     networks:
       - fullstack-network
-
-  frontend:
-    build:
-      context: ..
-      dockerfile: infrastructure/docker/Dockerfile.frontend
-    image: fullstack-frontend:${COMPOSE_FRONTEND_VERSION:-latest}
-    container_name: fullstack-frontend
-    pull_policy: never
-    restart: always
-    mem_limit: 5G
-    stop_grace_period: 10s
-    logging:
-      options:
-        max-size: 1G
-        max-file: 5
-        compress: "true"
-    environment:
-      - TZ=America/Sao_Paulo
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
-    ports:
-      - ${COMPOSE_FRONTEND_PORTS:-3000}:3000
-    depends_on:
-      - backend
-    networks:
-      - fullstack-network
