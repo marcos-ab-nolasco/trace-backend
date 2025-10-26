@@ -207,6 +207,19 @@ class BriefingOrchestrator:
         briefing.status = BriefingStatus.COMPLETED
         briefing.completed_at = datetime.now()
 
+        await self.db_session.flush()
+
+        # Create analytics record automatically
+        from src.services.briefing.analytics_service import AnalyticsService
+
+        analytics_service = AnalyticsService(self.db_session)
+        try:
+            await analytics_service.create_analytics_record(briefing_id)
+            logger.info(f"Created analytics for completed briefing {briefing_id}")
+        except Exception as e:
+            # Don't fail briefing completion if analytics creation fails
+            logger.error(f"Failed to create analytics for briefing {briefing_id}: {e}")
+
         await self.db_session.commit()
         await self.db_session.refresh(briefing)
 

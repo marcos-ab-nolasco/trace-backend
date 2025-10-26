@@ -1,5 +1,6 @@
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing, BriefingStatus
+from src.db.models.briefing_analytics import BriefingAnalytics
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.conversation import Conversation, ConversationType
 from src.db.models.end_client import EndClient
@@ -21,6 +22,7 @@ __all__ = [
     "EndClient",
     "Briefing",
     "BriefingStatus",
+    "BriefingAnalytics",
     "BriefingTemplate",
     "TemplateVersion",
     "WhatsAppAccount",

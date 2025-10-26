@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.session import Base
 
 if TYPE_CHECKING:
+    from src.db.models.briefing_analytics import BriefingAnalytics
     from src.db.models.end_client import EndClient
     from src.db.models.template_version import TemplateVersion
 
@@ -58,6 +59,9 @@ class Briefing(Base):
     # Relationships
     end_client: Mapped["EndClient"] = relationship("EndClient", back_populates="briefings")
     template_version: Mapped["TemplateVersion"] = relationship("TemplateVersion")
+    analytics: Mapped["BriefingAnalytics | None"] = relationship(
+        "BriefingAnalytics", back_populates="briefing", uselist=False
+    )
 
     def __repr__(self) -> str:
         return f"<Briefing(id={self.id}, status={self.status.value}, client_id={self.end_client_id})>"

@@ -3,10 +3,12 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
+from src.db.session import get_db_session
 from src.services.whatsapp.webhook_handler import WebhookHandler
 
 router = APIRouter(prefix="/api/webhooks/whatsapp", tags=["whatsapp-webhooks"])
@@ -66,7 +68,11 @@ async def verify_webhook(
 
 
 @router.post("", response_model=WebhookResponse)
-async def receive_webhook(request: Request, payload: dict[str, Any]) -> WebhookResponse:
+async def receive_webhook(
+    request: Request,
+    payload: dict[str, Any],
+    db_session: AsyncSession = Depends(get_db_session),
+) -> WebhookResponse:
     """
     Receive WhatsApp webhook events (messages and status updates).
 
@@ -88,7 +94,7 @@ async def receive_webhook(request: Request, payload: dict[str, Any]) -> WebhookR
             event_type = event.get("event_type")
 
             if event_type == "message":
-                await _handle_incoming_message(event)
+                await _handle_incoming_message(event, db_session)
             elif event_type == "status_update":
                 await _handle_status_update(event)
             else:
@@ -101,27 +107,55 @@ async def receive_webhook(request: Request, payload: dict[str, Any]) -> WebhookR
     return WebhookResponse(status="ok")
 
 
-async def _handle_incoming_message(event: dict[str, Any]) -> None:
+async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSession) -> None:
     """
     Handle incoming message from WhatsApp.
 
     Args:
         event: Parsed message event
+        db_session: Database session for processing
     """
     wa_message_id = event.get("wa_message_id")
     from_number = event.get("from")
     content = event.get("content", {})
     message_type = content.get("type")
+    phone_number_id = event.get("phone_number_id")
 
     logger.info(
         f"Incoming message: wa_id={wa_message_id}, from={from_number}, type={message_type}"
     )
 
-    # TODO: In next issues, this will:
-    # 1. Find or create WhatsAppSession for this phone number
-    # 2. Store message in WhatsAppMessage table
-    # 3. Trigger briefing orchestration logic
-    # For now, just log it
+    # Only process text messages for now
+    if message_type != "text":
+        logger.info(f"Skipping non-text message type: {message_type}")
+        return
+
+    # Extract text from message
+    text_body = content.get("text", {}).get("body")
+    if not text_body:
+        logger.warning("Text message without body")
+        return
+
+    # Process the answer using AnswerProcessorService
+    from src.services.briefing.answer_processor import AnswerProcessorService
+
+    processor = AnswerProcessorService(db_session)
+    result = await processor.process_client_answer(
+        phone_number=from_number,
+        answer_text=text_body,
+        wa_message_id=wa_message_id,
+        session_id=None,  # Let processor find/create session
+        phone_number_id=phone_number_id,
+    )
+
+    if result.get("success"):
+        logger.info(
+            f"Successfully processed answer from {from_number}, briefing_id={result.get('briefing_id')}"
+        )
+    else:
+        logger.warning(
+            f"Could not process answer from {from_number}: {result.get('error', 'Unknown error')}"
+        )
 
 
 async def _handle_status_update(event: dict[str, Any]) -> None:
