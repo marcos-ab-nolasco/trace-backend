@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.session import Base
 
 if TYPE_CHECKING:
+    from src.db.models.briefing_template import BriefingTemplate
     from src.db.models.end_client import EndClient
     from src.db.models.organization import Organization
     from src.db.models.user import User
@@ -48,6 +49,9 @@ class Architect(Base):
     organization: Mapped["Organization"] = relationship("Organization", back_populates="architects")
     end_clients: Mapped[list["EndClient"]] = relationship(
         "EndClient", back_populates="architect", cascade="all, delete-orphan"
+    )
+    templates: Mapped[list["BriefingTemplate"]] = relationship(
+        "BriefingTemplate", back_populates="architect", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
