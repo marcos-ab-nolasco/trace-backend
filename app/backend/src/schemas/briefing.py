@@ -72,3 +72,40 @@ class BriefingRead(BriefingCreate):
     answers: dict = Field(default_factory=dict, description="Question answers as JSONB")
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# WhatsApp Briefing Flow Schemas
+class StartBriefingRequest(BaseModel):
+    """Request schema for starting a briefing via WhatsApp."""
+
+    architect_id: UUID = Field(..., description="ID of the architect initiating the briefing")
+    architect_message: str = Field(
+        ...,
+        min_length=10,
+        max_length=2000,
+        description="Message from architect containing client information",
+    )
+
+    @field_validator("architect_message")
+    @classmethod
+    def validate_message_not_empty(cls, v: str) -> str:
+        """Validate message is not just whitespace."""
+        if v.strip() == "":
+            raise ValueError("Message cannot be empty or only whitespace")
+        return v.strip()
+
+
+class StartBriefingResponse(BaseModel):
+    """Response schema after starting a briefing via WhatsApp."""
+
+    briefing_id: UUID = Field(..., description="ID of the created briefing")
+    client_id: UUID = Field(..., description="ID of the end client")
+    client_name: str = Field(..., description="Name of the end client")
+    client_phone: str = Field(..., description="Phone number of the end client")
+    first_question: str = Field(..., description="First question sent to the client")
+    template_category: str = Field(..., description="Category of the template being used")
+    whatsapp_message_id: str | None = Field(
+        None, description="WhatsApp message ID if message was sent"
+    )
+
+    model_config = ConfigDict(from_attributes=True)
