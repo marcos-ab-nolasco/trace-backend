@@ -12,6 +12,7 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.architect import Architect
+    from src.db.models.conversation import Conversation
 
 
 class EndClient(Base):
@@ -41,6 +42,9 @@ class EndClient(Base):
 
     # Relationships
     architect: Mapped["Architect"] = relationship("Architect", back_populates="end_clients")
+    conversations: Mapped[list["Conversation"]] = relationship(
+        "Conversation", back_populates="end_client", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<EndClient(id={self.id}, name={self.name}, architect_id={self.architect_id})>"

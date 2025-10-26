@@ -1,5 +1,5 @@
     .PHONY: help setup-docker docker-build docker-up docker-down docker-logs docker-restart \
-	docker-migrate docker-migrate-create migrate migrate-create migrate-downgrade \
+	docker-migrate docker-migrate-create migrate migrate-create migrate-downgrade migrate-reset \
 	lint-backend lint-backend-fix lint lint-fix test-up test-down test-backend test test-cov test-specific clean
 
     help: ## Show this help message
@@ -44,6 +44,17 @@
 
     migrate-downgrade: ## Rollback last migration
 	cd app/backend && alembic downgrade -1
+
+    migrate-reset: ## Reset database (drop all tables and reapply migrations) - DEV ONLY
+	@echo "⚠️  WARNING: This will drop all tables and data!"
+	@read -p "Are you sure? (yes/no): " confirm; \
+	if [ "$$confirm" = "yes" ]; then \
+		echo "Resetting database..."; \
+		cd app/backend && alembic downgrade base && alembic upgrade head; \
+		echo "✅ Database reset complete!"; \
+	else \
+		echo "Cancelled."; \
+	fi
 
     lint-backend:
 	cd app/backend && black --check src tests --line-length 100
