@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import Any
+from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
 from openai import AsyncOpenAI
+from pydantic import BaseModel, ValidationError
 from tenacity import AsyncRetrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from src.core.config import get_settings
@@ -14,6 +16,8 @@ from src.core.config import get_settings
 from .base import BaseAIService
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class OpenAIService(BaseAIService):
@@ -89,6 +93,76 @@ class OpenAIService(BaseAIService):
             )
 
         return content
+
+    async def generate_structured_response(
+        self,
+        prompt: str,
+        response_model: type[T],
+        model: str,
+        system_prompt: str | None = None,
+    ) -> T:
+        """Generate a structured response using OpenAI's JSON mode."""
+        if self._client is None:
+            logger.warning("OpenAI provider not configured: missing OPENAI_API_KEY")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="OpenAI não está configurado. Defina OPENAI_API_KEY.",
+            )
+
+        client = self._client
+
+        # Build messages
+        messages: list[dict[str, Any]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        # Get JSON schema from Pydantic model
+        schema = response_model.model_json_schema()
+
+        try:
+            async for attempt in AsyncRetrying(
+                reraise=True,
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=1, max=4),
+                retry=retry_if_exception_type(Exception),
+            ):
+                with attempt:
+                    if attempt.retry_state.attempt_number > 1:
+                        logger.warning(
+                            f"OpenAI structured output retry {attempt.retry_state.attempt_number}/3"
+                        )
+
+                    response = await client.chat.completions.create(
+                        model=model,
+                        messages=messages,  # type: ignore[arg-type]
+                        response_format={"type": "json_object"},
+                    )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"OpenAI structured call failed: model={model} error={type(exc).__name__}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to generate structured response from OpenAI: {exc}",
+            ) from exc
+
+        # Parse response content
+        content = response.choices[0].message.content
+        if not content:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="OpenAI returned empty structured response",
+            )
+
+        # Parse JSON and validate against Pydantic model
+        try:
+            data = json.loads(content)
+            return response_model.model_validate(data)
+        except (json.JSONDecodeError, ValidationError) as exc:
+            logger.error(f"Failed to parse OpenAI structured response: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Invalid structured response from OpenAI: {exc}",
+            ) from exc
 
     @staticmethod
     def _build_payload(
