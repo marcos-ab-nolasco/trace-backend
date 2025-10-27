@@ -9,7 +9,7 @@ import asyncio
 import pytest
 from httpx import AsyncClient
 
-from src.db.models import User
+from src.db.models.architect import Architect
 
 
 @pytest.mark.asyncio
@@ -48,6 +48,8 @@ async def test_register_rate_limited_by_ip(client: AsyncClient) -> None:
                 "email": f"testuser{i}@ratelimit.com",
                 "password": "ValidPassword123!",
                 "full_name": f"Test User {i}",
+                "phone": f"+551199999{i:04d}",
+                "organization_name": f"Test Org {i}",
             },
         )
         # Should be 201 (created) or 400 (email exists), but NOT 429
@@ -63,6 +65,8 @@ async def test_register_rate_limited_by_ip(client: AsyncClient) -> None:
             "email": "testuser6@ratelimit.com",
             "password": "ValidPassword123!",
             "full_name": "Test User 6",
+            "phone": "+5511999996666",
+            "organization_name": "Test Org 6",
         },
     )
     assert response.status_code == 429, "6th request should be rate limited"
@@ -117,7 +121,7 @@ async def test_rate_limit_resets_after_window(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_create_message_rate_limited_by_user(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Create message endpoint should be rate limited to 10 requests per minute per user.
 
@@ -168,6 +172,8 @@ async def test_different_users_have_separate_rate_limits(client: AsyncClient) ->
             "email": "ratelimituser1@test.com",
             "password": "Password123!",
             "full_name": "Rate Limit User 1",
+            "phone": "+5511999991111",
+            "organization_name": "Rate Limit Org 1",
         },
     )
     assert user1_response.status_code == 201
@@ -178,6 +184,8 @@ async def test_different_users_have_separate_rate_limits(client: AsyncClient) ->
             "email": "ratelimituser2@test.com",
             "password": "Password123!",
             "full_name": "Rate Limit User 2",
+            "phone": "+5511999992222",
+            "organization_name": "Rate Limit Org 2",
         },
     )
     assert user2_response.status_code == 201

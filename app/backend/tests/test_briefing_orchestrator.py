@@ -9,7 +9,7 @@ from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
-from src.db.models.user import User
+from src.db.models.architect import Architect
 from src.services.briefing.orchestrator import BriefingOrchestrator
 
 
@@ -27,13 +27,10 @@ async def test_organization(db_session: AsyncSession) -> Organization:
 @pytest.fixture
 async def test_architect(db_session: AsyncSession, test_organization: Organization) -> Architect:
     """Create test architect."""
-    user = User(email="architect@test.com", hashed_password="hash123")
-    db_session.add(user)
-    await db_session.flush()
-
     architect = Architect(
-        user_id=user.id,
         organization_id=test_organization.id,
+        email="architect@test.com",
+        hashed_password="hash123",
         phone="+5511999999999",
         is_authorized=True,
     )

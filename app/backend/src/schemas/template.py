@@ -114,6 +114,7 @@ class BriefingTemplateRead(BriefingTemplateBase):
 
     id: UUID
     is_global: bool
+    category: str | None = Field(None, description="Legacy category field")
     organization_id: UUID | None
     created_by_architect_id: UUID | None
     current_version_id: UUID | None

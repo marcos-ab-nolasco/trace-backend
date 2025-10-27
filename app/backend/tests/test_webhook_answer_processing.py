@@ -15,7 +15,7 @@ from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
-from src.db.models.user import User
+from src.db.models.architect import Architect
 from src.db.models.whatsapp_message import MessageDirection, MessageStatus, WhatsAppMessage
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 
@@ -36,23 +36,14 @@ async def test_organization(db_session: AsyncSession) -> Organization:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create test user."""
-    user = User(email="architect@test.com", hashed_password="hashed_password")
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def test_architect(
-    db_session: AsyncSession, test_organization: Organization, test_user: User
+    db_session: AsyncSession, test_organization: Organization
 ) -> Architect:
     """Create test architect."""
     architect = Architect(
-        user_id=test_user.id,
         organization_id=test_organization.id,
+        email="architect@test.com",
+        hashed_password="hashed_password",
         phone="+5511999999999",
         is_authorized=True,
     )

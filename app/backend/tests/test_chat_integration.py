@@ -7,13 +7,13 @@ invalidation and data consistency. They simulate real user workflows.
 import pytest
 from httpx import AsyncClient
 
-from src.db.models import User
+from src.db.models.architect import Architect
 
 
 @pytest.mark.asyncio
 async def test_conversation_list_reflects_create_operations(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """When a conversation is created, subsequent list calls must include it.
@@ -76,7 +76,7 @@ async def test_conversation_list_reflects_create_operations(
 @pytest.mark.asyncio
 async def test_conversation_list_reflects_update_operations(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """When a conversation is updated, subsequent list calls must show the changes.
@@ -144,7 +144,7 @@ async def test_conversation_list_reflects_update_operations(
 @pytest.mark.asyncio
 async def test_conversation_list_reflects_delete_operations(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """When a conversation is deleted, subsequent list calls must not include it.
@@ -203,7 +203,7 @@ async def test_conversation_list_reflects_delete_operations(
 @pytest.mark.asyncio
 async def test_conversation_list_ordering_by_updated_at(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """Conversations should be ordered by updated_at descending (most recent first).
@@ -254,7 +254,7 @@ async def test_conversation_list_ordering_by_updated_at(
 @pytest.mark.asyncio
 async def test_conversation_list_isolation_between_users(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
     db_session,
 ) -> None:
@@ -265,10 +265,13 @@ async def test_conversation_list_isolation_between_users(
     from src.core.security import hash_password
 
     # Create a second user
-    second_user = User(
+    second_user = Architect(
+        organization_id=test_user.organization_id,
         email="second@example.com",
         hashed_password=hash_password("password123"),
         full_name="Second User",
+        phone="+5511777777777",
+        is_authorized=True,
     )
     db_session.add(second_user)
     await db_session.commit()
@@ -357,7 +360,7 @@ async def test_conversation_list_isolation_between_users(
 @pytest.mark.asyncio
 async def test_multiple_rapid_list_calls_return_consistent_data(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """Multiple rapid list calls without mutations should return identical data.
@@ -400,7 +403,7 @@ async def test_multiple_rapid_list_calls_return_consistent_data(
 @pytest.mark.asyncio
 async def test_message_list_reflects_create_operations(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """When messages are created, subsequent list calls must include them.
@@ -473,7 +476,7 @@ async def test_message_list_reflects_create_operations(
 @pytest.mark.asyncio
 async def test_message_list_ordering_by_created_at(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """Messages should be ordered by created_at ascending (oldest first).
@@ -530,7 +533,7 @@ async def test_message_list_ordering_by_created_at(
 @pytest.mark.asyncio
 async def test_message_list_isolation_between_conversations(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """Each conversation should have isolated messages.
@@ -627,7 +630,7 @@ async def test_message_list_isolation_between_conversations(
 @pytest.mark.asyncio
 async def test_message_list_isolation_between_users(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
     db_session,
 ) -> None:
@@ -638,10 +641,13 @@ async def test_message_list_isolation_between_users(
     from src.core.security import create_access_token, hash_password
 
     # Create a second user
-    second_user = User(
+    second_user = Architect(
+        organization_id=test_user.organization_id,
         email="second@example.com",
         hashed_password=hash_password("password123"),
         full_name="Second User",
+        phone="+5511777777777",
+        is_authorized=True,
     )
     db_session.add(second_user)
     await db_session.commit()
@@ -726,7 +732,7 @@ async def test_message_list_isolation_between_users(
 @pytest.mark.asyncio
 async def test_multiple_rapid_message_list_calls_return_consistent_data(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """Multiple rapid list calls without new messages should return identical data.

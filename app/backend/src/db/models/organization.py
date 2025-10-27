@@ -41,11 +41,6 @@ class Organization(Base):
     architects: Mapped[list["Architect"]] = relationship(
         "Architect", back_populates="organization", cascade="all, delete-orphan"
     )
-    whatsapp_accounts: Mapped[list["WhatsAppAccount"]] = relationship(
-        "WhatsAppAccount",
-        secondary="organization_whatsapp_accounts",
-        back_populates="organizations",
-    )
     whatsapp_account_links: Mapped[list["OrganizationWhatsAppAccount"]] = relationship(
         "OrganizationWhatsAppAccount",
         back_populates="organization",

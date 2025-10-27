@@ -6,25 +6,34 @@ from httpx import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.organization import Organization
+from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
 from src.db.models.whatsapp_account import WhatsAppAccount
 from src.services.whatsapp.whatsapp_service import WhatsAppService
 
 
 @pytest.fixture
 async def whatsapp_account(db_session: AsyncSession) -> WhatsAppAccount:
-    """Create test WhatsApp account."""
+    """Create test WhatsApp account with organization link."""
     org = Organization(name="Test Org")
     db_session.add(org)
     await db_session.flush()
 
     account = WhatsAppAccount(
-        organization_id=org.id,
         phone_number_id="test_phone_123",
         phone_number="+5511999999999",
         access_token="test_access_token",
         webhook_verify_token="test_verify_token",
     )
     db_session.add(account)
+    await db_session.flush()
+
+    # Create N:N relationship
+    link = OrganizationWhatsAppAccount(
+        organization_id=org.id,
+        whatsapp_account_id=account.id,
+        is_primary=True,
+    )
+    db_session.add(link)
     await db_session.commit()
     await db_session.refresh(account)
     return account

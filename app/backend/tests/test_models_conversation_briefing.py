@@ -5,22 +5,32 @@ from uuid import UUID
 from datetime import datetime
 
 from src.db.models.conversation import Conversation, ConversationType
-from src.db.models.user import User
-from src.db.models.organization import Organization
 from src.db.models.architect import Architect
+from src.db.models.organization import Organization
 from src.db.models.end_client import EndClient
 
 
 @pytest.mark.asyncio
 async def test_create_web_chat_conversation(db_session):
     """Test creating a web chat conversation (original functionality)."""
-    user = User(email="chat@test.com", hashed_password="hashed")
-    db_session.add(user)
+    # Create organization and architect
+    org = Organization(name="Chat Org")
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
+    await db_session.refresh(org)
+
+    architect = Architect(
+        organization_id=org.id,
+        email="chat@test.com",
+        hashed_password="hashed",
+        phone="+5511999999999",
+    )
+    db_session.add(architect)
+    await db_session.commit()
+    await db_session.refresh(architect)
 
     conversation = Conversation(
-        user_id=user.id,
+        architect_id=architect.id,
         title="Test Chat",
         ai_provider="openai",
         ai_model="gpt-4",
@@ -31,28 +41,27 @@ async def test_create_web_chat_conversation(db_session):
     await db_session.refresh(conversation)
 
     assert isinstance(conversation.id, UUID)
-    assert conversation.user_id == user.id
+    assert conversation.architect_id == architect.id
     assert conversation.conversation_type == ConversationType.WEB_CHAT.value
     assert conversation.end_client_id is None
-    assert conversation.briefing_id is None
     assert conversation.whatsapp_context is None
 
 
 @pytest.mark.asyncio
 async def test_create_whatsapp_briefing_conversation(db_session):
     """Test creating a WhatsApp briefing conversation."""
-    # Setup user, org, architect, end_client
-    user = User(email="architect@test.com", hashed_password="hashed")
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-
+    # Setup organization, architect, end_client
     org = Organization(name="Test Org")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    architect = Architect(user_id=user.id, organization_id=org.id, phone="+5511111111111")
+    architect = Architect(
+        organization_id=org.id,
+        email="architect@test.com",
+        hashed_password="hashed",
+        phone="+5511111111111",
+    )
     db_session.add(architect)
     await db_session.commit()
     await db_session.refresh(architect)
@@ -64,7 +73,7 @@ async def test_create_whatsapp_briefing_conversation(db_session):
 
     # Create WhatsApp briefing conversation
     conversation = Conversation(
-        user_id=user.id,  # The architect user
+        architect_id=architect.id,
         title="Briefing: Client",
         ai_provider="anthropic",
         ai_model="claude-3",
@@ -82,21 +91,23 @@ async def test_create_whatsapp_briefing_conversation(db_session):
 
     assert conversation.conversation_type == ConversationType.WHATSAPP_BRIEFING.value
     assert conversation.end_client_id == end_client.id
-    assert conversation.briefing_id is None  # Will be set when briefing starts
     assert conversation.whatsapp_context["session_id"] == "wa_session_123"
 
 
 @pytest.mark.asyncio
 async def test_conversation_relationship_with_end_client(db_session):
     """Test conversation relationship with end client."""
-    user = User(email="rel@test.com", hashed_password="hashed")
     org = Organization(name="Rel Org")
-    db_session.add_all([user, org])
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
     await db_session.refresh(org)
 
-    architect = Architect(user_id=user.id, organization_id=org.id, phone="+5511333333333")
+    architect = Architect(
+        organization_id=org.id,
+        email="rel@test.com",
+        hashed_password="hashed",
+        phone="+5511333333333",
+    )
     db_session.add(architect)
     await db_session.commit()
     await db_session.refresh(architect)
@@ -107,7 +118,7 @@ async def test_conversation_relationship_with_end_client(db_session):
     await db_session.refresh(end_client)
 
     conversation = Conversation(
-        user_id=user.id,
+        architect_id=architect.id,
         title="Test Conversation",
         ai_provider="openai",
         ai_model="gpt-4",
@@ -124,16 +135,60 @@ async def test_conversation_relationship_with_end_client(db_session):
 
 
 @pytest.mark.asyncio
+async def test_conversation_relationship_with_architect(db_session):
+    """Test conversation relationship with architect."""
+    org = Organization(name="Architect Rel Org")
+    db_session.add(org)
+    await db_session.commit()
+    await db_session.refresh(org)
+
+    architect = Architect(
+        organization_id=org.id,
+        email="archrel@test.com",
+        hashed_password="hashed",
+        phone="+5511555555555",
+    )
+    db_session.add(architect)
+    await db_session.commit()
+    await db_session.refresh(architect)
+
+    conversation = Conversation(
+        architect_id=architect.id,
+        title="Architect Conversation",
+        ai_provider="openai",
+        ai_model="gpt-4",
+        conversation_type=ConversationType.WEB_CHAT,
+    )
+    db_session.add(conversation)
+    await db_session.commit()
+    await db_session.refresh(conversation)
+
+    # Test relationship
+    assert conversation.architect.id == architect.id
+    assert conversation.architect.email == "archrel@test.com"
+
+
+@pytest.mark.asyncio
 async def test_conversation_type_enum(db_session):
     """Test that conversation_type uses enum correctly."""
-    user = User(email="enum@test.com", hashed_password="hashed")
-    db_session.add(user)
+    org = Organization(name="Enum Org")
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
+    await db_session.refresh(org)
+
+    architect = Architect(
+        organization_id=org.id,
+        email="enum@test.com",
+        hashed_password="hashed",
+        phone="+5511666666666",
+    )
+    db_session.add(architect)
+    await db_session.commit()
+    await db_session.refresh(architect)
 
     # Test WEB_CHAT type
     conv1 = Conversation(
-        user_id=user.id,
+        architect_id=architect.id,
         title="Web Chat",
         ai_provider="openai",
         ai_model="gpt-4",
@@ -150,16 +205,90 @@ async def test_conversation_type_enum(db_session):
 @pytest.mark.asyncio
 async def test_conversation_default_type_is_web_chat(db_session):
     """Test that conversation_type defaults to WEB_CHAT."""
-    user = User(email="default@test.com", hashed_password="hashed")
-    db_session.add(user)
+    org = Organization(name="Default Org")
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
+    await db_session.refresh(org)
+
+    architect = Architect(
+        organization_id=org.id,
+        email="default@test.com",
+        hashed_password="hashed",
+        phone="+5511777777777",
+    )
+    db_session.add(architect)
+    await db_session.commit()
+    await db_session.refresh(architect)
 
     conversation = Conversation(
-        user_id=user.id, title="Default Type", ai_provider="openai", ai_model="gpt-4"
+        architect_id=architect.id, title="Default Type", ai_provider="openai", ai_model="gpt-4"
     )
     db_session.add(conversation)
     await db_session.commit()
     await db_session.refresh(conversation)
 
     assert conversation.conversation_type == ConversationType.WEB_CHAT.value
+
+
+@pytest.mark.asyncio
+async def test_conversation_cascade_on_architect_delete(db_session):
+    """Test that conversation is deleted when architect is deleted (CASCADE)."""
+    org = Organization(name="Cascade Org")
+    db_session.add(org)
+    await db_session.commit()
+    await db_session.refresh(org)
+
+    architect = Architect(
+        organization_id=org.id,
+        email="cascade@test.com",
+        hashed_password="hashed",
+        phone="+5511888888888",
+    )
+    db_session.add(architect)
+    await db_session.commit()
+    await db_session.refresh(architect)
+
+    conversation = Conversation(
+        architect_id=architect.id,
+        title="Will be deleted",
+        ai_provider="openai",
+        ai_model="gpt-4",
+        conversation_type=ConversationType.WEB_CHAT,
+    )
+    db_session.add(conversation)
+    await db_session.commit()
+    conversation_id = conversation.id
+
+    # Delete architect
+    await db_session.delete(architect)
+    await db_session.commit()
+
+    # Verify conversation is deleted (CASCADE)
+    from sqlalchemy import select
+
+    result = await db_session.execute(select(Conversation).where(Conversation.id == conversation_id))
+    assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_conversation_set_null_on_architect_delete_if_needed(db_session):
+    """Test conversation.architect_id can be NULL (SET NULL behavior)."""
+    org = Organization(name="Set Null Org")
+    db_session.add(org)
+    await db_session.commit()
+    await db_session.refresh(org)
+
+    # Create conversation without architect (nullable)
+    conversation = Conversation(
+        architect_id=None,  # Nullable for system-generated conversations
+        title="System Conversation",
+        ai_provider="openai",
+        ai_model="gpt-4",
+        conversation_type=ConversationType.WEB_CHAT,
+    )
+    db_session.add(conversation)
+    await db_session.commit()
+    await db_session.refresh(conversation)
+
+    assert conversation.architect_id is None
+    assert conversation.architect is None

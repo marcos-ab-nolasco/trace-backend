@@ -3,12 +3,13 @@ from httpx import AsyncClient
 from pytest_mock import MockerFixture
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models import Conversation, User
+from src.db.models import Conversation
+from src.db.models.architect import Architect
 
 
 @pytest.mark.asyncio
 async def test_create_conversation(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test creating a new conversation."""
     response = await client.post(
@@ -28,7 +29,7 @@ async def test_create_conversation(
     assert data["ai_provider"] == "openai"
     assert data["ai_model"] == "gpt-4"
     assert data["system_prompt"] == "You are a helpful assistant."
-    assert data["user_id"] == str(test_user.id)
+    assert data["architect_id"] == str(test_user.id)
     assert "id" in data
     assert "created_at" in data
     assert "updated_at" in data
@@ -52,7 +53,7 @@ async def test_list_providers(client: AsyncClient, auth_headers: dict[str, str])
 
 @pytest.mark.asyncio
 async def test_list_conversations(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test listing conversations for current user."""
     # Create two conversations
@@ -81,7 +82,7 @@ async def test_list_conversations(
 
 @pytest.mark.asyncio
 async def test_get_conversation(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test getting a specific conversation."""
     # Create conversation
@@ -103,16 +104,19 @@ async def test_get_conversation(
 
 @pytest.mark.asyncio
 async def test_cannot_access_other_user_conversation(
-    client: AsyncClient, test_user: User, db_session: AsyncSession
+    client: AsyncClient, test_user: Architect, db_session: AsyncSession
 ) -> None:
     """Test that users cannot access conversations from other users."""
     from src.core.security import create_access_token, hash_password
 
-    # Create another user
-    other_user = User(
+    # Create another user (same organization)
+    other_user = Architect(
+        organization_id=test_user.organization_id,
         email="other@example.com",
         hashed_password=hash_password("password123"),
         full_name="Other User",
+        phone="+5511777777777",
+        is_authorized=True,
     )
     db_session.add(other_user)
     await db_session.commit()
@@ -120,7 +124,7 @@ async def test_cannot_access_other_user_conversation(
 
     # Create conversation for other user
     other_conversation = Conversation(
-        user_id=other_user.id,
+        architect_id=other_user.id,
         title="Other User Chat",
         ai_provider="openai",
         ai_model="gpt-4",
@@ -141,7 +145,7 @@ async def test_cannot_access_other_user_conversation(
 
 @pytest.mark.asyncio
 async def test_update_conversation(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test updating a conversation."""
     # Create conversation
@@ -167,7 +171,7 @@ async def test_update_conversation(
 
 @pytest.mark.asyncio
 async def test_delete_conversation(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test deleting a conversation."""
     # Create conversation
@@ -192,7 +196,7 @@ async def test_delete_conversation(
 @pytest.mark.asyncio
 async def test_create_message_generates_ai_response(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
     mocker: MockerFixture,
 ) -> None:
@@ -255,7 +259,7 @@ async def test_create_message_generates_ai_response(
 
 @pytest.mark.asyncio
 async def test_list_messages(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str]
+    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test listing messages in a conversation."""
     # Create conversation
@@ -299,7 +303,7 @@ async def test_list_messages(
 
 @pytest.mark.asyncio
 async def test_delete_conversation_cascades_to_messages(
-    client: AsyncClient, test_user: User, auth_headers: dict[str, str], db_session: AsyncSession
+    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str], db_session: AsyncSession
 ) -> None:
     """Test that deleting a conversation also deletes its messages."""
     from sqlalchemy import func, select

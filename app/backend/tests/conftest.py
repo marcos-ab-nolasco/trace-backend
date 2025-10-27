@@ -28,6 +28,7 @@ from src.core.cache.client import get_redis_client  # noqa: E402
 from src.core.config import get_settings  # noqa: E402
 from src.db.models.architect import Architect  # noqa: E402
 from src.db.models.organization import Organization  # noqa: E402
+from src.db.models.project_type import ProjectType  # noqa: E402
 from src.db.session import Base, get_db  # noqa: E402
 from src.main import app  # noqa: E402
 
@@ -220,3 +221,48 @@ def auth_headers(test_architect: Architect) -> dict[str, str]:
 
     token = create_access_token(data={"sub": str(test_architect.id)})
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+async def project_type_residencial(db_session: AsyncSession) -> ProjectType:
+    """Create a 'residencial' project type."""
+    project_type = ProjectType(
+        slug="residencial",
+        label="Residencial",
+        description="Projetos residenciais (casas, apartamentos)",
+        is_active=True,
+    )
+    db_session.add(project_type)
+    await db_session.commit()
+    await db_session.refresh(project_type)
+    return project_type
+
+
+@pytest.fixture
+async def project_type_reforma(db_session: AsyncSession) -> ProjectType:
+    """Create a 'reforma' project type."""
+    project_type = ProjectType(
+        slug="reforma",
+        label="Reforma",
+        description="Reformas e renovações",
+        is_active=True,
+    )
+    db_session.add(project_type)
+    await db_session.commit()
+    await db_session.refresh(project_type)
+    return project_type
+
+
+@pytest.fixture
+async def project_type_comercial(db_session: AsyncSession) -> ProjectType:
+    """Create a 'comercial' project type."""
+    project_type = ProjectType(
+        slug="comercial",
+        label="Comercial",
+        description="Projetos comerciais",
+        is_active=True,
+    )
+    db_session.add(project_type)
+    await db_session.commit()
+    await db_session.refresh(project_type)
+    return project_type

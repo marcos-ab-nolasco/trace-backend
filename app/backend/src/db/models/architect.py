@@ -49,7 +49,6 @@ class Architect(Base):
     created_templates: Mapped[list["BriefingTemplate"]] = relationship(
         "BriefingTemplate",
         back_populates="created_by",
-        cascade="all, delete-orphan",
         foreign_keys="BriefingTemplate.created_by_architect_id",
     )
     conversations: Mapped[list["Conversation"]] = relationship(

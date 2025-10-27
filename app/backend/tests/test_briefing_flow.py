@@ -8,6 +8,7 @@ from httpx import AsyncClient
 from pytest_mock import MockerFixture
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing, BriefingStatus
@@ -16,7 +17,6 @@ from src.db.models.conversation import Conversation, ConversationType
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
-from src.db.models.user import User
 from src.schemas.briefing import ExtractedClientInfo
 
 
@@ -36,23 +36,14 @@ async def test_organization(db_session: AsyncSession) -> Organization:
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create test user."""
-    user = User(email="architect@test.com", hashed_password="hashed_password")
-    db_session.add(user)
-    await db_session.commit()
-    await db_session.refresh(user)
-    return user
-
-
-@pytest.fixture
 async def test_architect(
-    db_session: AsyncSession, test_organization: Organization, test_user: User
+    db_session: AsyncSession, test_organization: Organization
 ) -> Architect:
     """Create test architect."""
     architect = Architect(
-        user_id=test_user.id,
         organization_id=test_organization.id,
+        email="architect@test.com",
+        hashed_password="hashed_password",
         phone="+5511999999999",
         is_authorized=True,
     )
@@ -106,9 +97,9 @@ async def test_templates(db_session: AsyncSession) -> dict[str, BriefingTemplate
 
     await db_session.commit()
 
-    # Refresh all templates to ensure IDs are loaded
+    # Refresh all templates with eager loading of current_version relationship
     for template in templates.values():
-        await db_session.refresh(template)
+        await db_session.refresh(template, attribute_names=["current_version"])
 
     return templates
 
@@ -151,11 +142,11 @@ async def test_start_briefing_with_complete_client_info(
         new=AsyncMock(return_value=mock_extracted_info),
     )
 
-    # Mock ExtractionService.identify_template
+    # Mock TemplateService.select_template_version_for_project
     reforma_template = test_templates["reforma"]
-    mock_identify = mocker.patch(
-        "src.api.briefings.ExtractionService.identify_template",
-        new=AsyncMock(return_value=reforma_template.current_version_id),
+    mock_select_template = mocker.patch(
+        "src.services.template_service.TemplateService.select_template_version_for_project",
+        new=AsyncMock(return_value=reforma_template.current_version),
     )
 
     # Mock WhatsAppService.send_text_message
@@ -201,9 +192,15 @@ async def test_start_briefing_with_complete_client_info(
     assert end_client.name == "João Silva"
     assert end_client.phone == "+5511999887766"
 
-    # Verify Conversation was created
+    # Verify Conversation was created (via Briefing.conversation_id)
     result = await db_session.execute(
-        select(Conversation).where(Conversation.briefing_id == briefing_id)
+        select(Briefing).where(Briefing.id == briefing_id)
+    )
+    briefing_with_conv = result.scalar_one()
+    assert briefing_with_conv.conversation_id is not None
+
+    result = await db_session.execute(
+        select(Conversation).where(Conversation.id == briefing_with_conv.conversation_id)
     )
     conversation = result.scalar_one()
     assert conversation.conversation_type == ConversationType.WHATSAPP_BRIEFING.value
@@ -211,7 +208,7 @@ async def test_start_briefing_with_complete_client_info(
 
     # Verify services were called
     mock_extract.assert_called_once()
-    mock_identify.assert_called_once()
+    mock_select_template.assert_called_once()
     mock_whatsapp_send.assert_called_once()
 
 
@@ -241,8 +238,8 @@ async def test_start_briefing_with_existing_client_duplicate_phone(
     # Mock template identification
     residencial_template = test_templates["residencial"]
     mocker.patch(
-        "src.api.briefings.ExtractionService.identify_template",
-        new=AsyncMock(return_value=residencial_template.current_version_id),
+        "src.services.template_service.TemplateService.select_template_version_for_project",
+        new=AsyncMock(return_value=residencial_template.current_version),
     )
 
     # Mock WhatsApp send
@@ -432,8 +429,8 @@ async def test_template_identification_by_project_type(
         # Mock template identification to return correct template
         expected_template = test_templates[project_type]
         mocker.patch(
-            "src.api.briefings.ExtractionService.identify_template",
-            new=AsyncMock(return_value=expected_template.current_version_id),
+            "src.services.template_service.TemplateService.select_template_version_for_project",
+            new=AsyncMock(return_value=expected_template.current_version),
         )
 
         # Mock WhatsApp
@@ -494,8 +491,8 @@ async def test_transaction_rollback_on_whatsapp_failure(
     # Mock template identification
     reforma_template = test_templates["reforma"]
     mocker.patch(
-        "src.api.briefings.ExtractionService.identify_template",
-        new=AsyncMock(return_value=reforma_template.current_version_id),
+        "src.services.template_service.TemplateService.select_template_version_for_project",
+        new=AsyncMock(return_value=reforma_template.current_version),
     )
 
     # Mock WhatsApp to fail
@@ -547,8 +544,8 @@ async def test_conversation_record_creation_with_whatsapp_context(
     # Mock template
     comercial_template = test_templates["comercial"]
     mocker.patch(
-        "src.api.briefings.ExtractionService.identify_template",
-        new=AsyncMock(return_value=comercial_template.current_version_id),
+        "src.services.template_service.TemplateService.select_template_version_for_project",
+        new=AsyncMock(return_value=comercial_template.current_version),
     )
 
     # Mock WhatsApp
@@ -576,15 +573,20 @@ async def test_conversation_record_creation_with_whatsapp_context(
     briefing_id = UUID(data["briefing_id"])
     client_id = UUID(data["client_id"])
 
-    # Verify Conversation was created
+    # Verify Conversation was created (via Briefing.conversation_id)
     result = await db_session.execute(
-        select(Conversation).where(Conversation.briefing_id == briefing_id)
+        select(Briefing).where(Briefing.id == briefing_id)
+    )
+    briefing_with_conv = result.scalar_one()
+    assert briefing_with_conv.conversation_id is not None
+
+    result = await db_session.execute(
+        select(Conversation).where(Conversation.id == briefing_with_conv.conversation_id)
     )
     conversation = result.scalar_one()
 
     assert conversation.conversation_type == ConversationType.WHATSAPP_BRIEFING.value
     assert conversation.end_client_id == client_id
-    assert conversation.briefing_id == briefing_id
     assert conversation.whatsapp_context is not None
     assert "phone_number" in conversation.whatsapp_context
     assert "architect_id" in conversation.whatsapp_context

@@ -48,11 +48,6 @@ class WhatsAppAccount(Base):
     )
 
     # Relationships
-    organizations: Mapped[list["Organization"]] = relationship(
-        "Organization",
-        secondary="organization_whatsapp_accounts",
-        back_populates="whatsapp_accounts",
-    )
     organization_links: Mapped[list["OrganizationWhatsAppAccount"]] = relationship(
         "OrganizationWhatsAppAccount",
         back_populates="whatsapp_account",

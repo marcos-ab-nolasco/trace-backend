@@ -7,26 +7,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models.architect import Architect
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
-from src.db.models.user import User
+from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
 from src.db.models.whatsapp_account import WhatsAppAccount
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 
 
 @pytest.fixture
 async def whatsapp_account(db_session: AsyncSession) -> WhatsAppAccount:
-    """Create test WhatsApp account."""
+    """Create test WhatsApp account with organization link."""
     org = Organization(name="Test Org")
     db_session.add(org)
     await db_session.flush()
 
     account = WhatsAppAccount(
-        organization_id=org.id,
         phone_number_id="test_phone_123",
         phone_number="+5511999999999",
         access_token="test_token",
         webhook_verify_token="test_verify_token",
     )
     db_session.add(account)
+    await db_session.flush()
+
+    # Create N:N relationship
+    link = OrganizationWhatsAppAccount(
+        organization_id=org.id,
+        whatsapp_account_id=account.id,
+        is_primary=True,
+    )
+    db_session.add(link)
     await db_session.commit()
     await db_session.refresh(account)
     return account
@@ -99,12 +107,12 @@ async def test_webhook_receive_text_message(
     db_session.add(org)
     await db_session.flush()
 
-    user = User(email="architect@test.com", hashed_password="hashed")
-    db_session.add(user)
-    await db_session.flush()
-
     architect = Architect(
-        user_id=user.id, organization_id=org.id, phone="+5511888888888", is_authorized=True
+        organization_id=org.id,
+        email="architect@test.com",
+        hashed_password="hashed",
+        phone="+5511888888888",
+        is_authorized=True,
     )
     db_session.add(architect)
     await db_session.flush()
@@ -137,7 +145,7 @@ async def test_webhook_receive_text_message(
                                 "display_phone_number": "+5511999999999",
                                 "phone_number_id": "test_phone_123",
                             },
-                            "contacts": [{"profile": {"name": "Test User"}, "wa_id": "5511999999999"}],
+                            "contacts": [{"profile": {"name": "Test Architect"}, "wa_id": "5511999999999"}],
                             "messages": [
                                 {
                                     "from": "5511999999999",

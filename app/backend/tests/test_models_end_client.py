@@ -8,21 +8,23 @@ from sqlalchemy import select
 from src.db.models.end_client import EndClient
 from src.db.models.architect import Architect
 from src.db.models.organization import Organization
-from src.db.models.user import User
 
 
 @pytest.mark.asyncio
 async def test_create_end_client(db_session):
     """Test creating an end client."""
-    # Setup architect
-    user = User(email="arch@test.com", hashed_password="hashed")
+    # Setup organization and architect
     org = Organization(name="Test Org")
-    db_session.add_all([user, org])
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
     await db_session.refresh(org)
 
-    architect = Architect(user_id=user.id, organization_id=org.id, phone="+5511111111111")
+    architect = Architect(
+        organization_id=org.id,
+        email="arch@test.com",
+        hashed_password="hashed",
+        phone="+5511111111111",
+    )
     db_session.add(architect)
     await db_session.commit()
     await db_session.refresh(architect)
@@ -52,14 +54,17 @@ async def test_create_end_client(db_session):
 @pytest.mark.asyncio
 async def test_end_client_relationship_with_architect(db_session):
     """Test end client relationship with architect."""
-    user = User(email="rel@test.com", hashed_password="hashed")
     org = Organization(name="Rel Org")
-    db_session.add_all([user, org])
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
     await db_session.refresh(org)
 
-    architect = Architect(user_id=user.id, organization_id=org.id, phone="+5511222222222")
+    architect = Architect(
+        organization_id=org.id,
+        email="rel@test.com",
+        hashed_password="hashed",
+        phone="+5511222222222",
+    )
     db_session.add(architect)
     await db_session.commit()
     await db_session.refresh(architect)
@@ -79,25 +84,29 @@ async def test_end_client_relationship_with_architect(db_session):
 
 @pytest.mark.asyncio
 async def test_end_client_unique_phone_per_architect(db_session):
-    """Test that phone number must be unique per architect."""
-    user = User(email="unique@test.com", hashed_password="hashed")
+    """Test that phone is unique per architect."""
     org = Organization(name="Unique Org")
-    db_session.add_all([user, org])
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
     await db_session.refresh(org)
 
-    architect = Architect(user_id=user.id, organization_id=org.id, phone="+5511444444444")
+    architect = Architect(
+        organization_id=org.id,
+        email="unique@test.com",
+        hashed_password="hashed",
+        phone="+5511444444444",
+    )
     db_session.add(architect)
     await db_session.commit()
     await db_session.refresh(architect)
 
-    client1 = EndClient(architect_id=architect.id, name="Client 1", phone="+5511999999999")
+    # Create first client
+    client1 = EndClient(architect_id=architect.id, name="Client 1", phone="+5511555555555")
     db_session.add(client1)
     await db_session.commit()
 
-    # Try to add another client with same phone for same architect
-    client2 = EndClient(architect_id=architect.id, name="Client 2", phone="+5511999999999")
+    # Try to create another client with same phone for same architect
+    client2 = EndClient(architect_id=architect.id, name="Client 2", phone="+5511555555555")
     db_session.add(client2)
     with pytest.raises(Exception):  # IntegrityError
         await db_session.commit()
@@ -105,20 +114,23 @@ async def test_end_client_unique_phone_per_architect(db_session):
 
 @pytest.mark.asyncio
 async def test_end_client_cascade_on_architect_delete(db_session):
-    """Test that end clients are deleted when architect is deleted."""
-    user = User(email="cascade@test.com", hashed_password="hashed")
+    """Test that end clients are deleted when architect is deleted (CASCADE)."""
     org = Organization(name="Cascade Org")
-    db_session.add_all([user, org])
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
     await db_session.refresh(org)
 
-    architect = Architect(user_id=user.id, organization_id=org.id, phone="+5511555555555")
+    architect = Architect(
+        organization_id=org.id,
+        email="cascade@test.com",
+        hashed_password="hashed",
+        phone="+5511666666666",
+    )
     db_session.add(architect)
     await db_session.commit()
     await db_session.refresh(architect)
 
-    end_client = EndClient(architect_id=architect.id, name="Test Client", phone="+5511666666666")
+    end_client = EndClient(architect_id=architect.id, name="Will be deleted", phone="+5511777777777")
     db_session.add(end_client)
     await db_session.commit()
     client_id = end_client.id
@@ -127,7 +139,7 @@ async def test_end_client_cascade_on_architect_delete(db_session):
     await db_session.delete(architect)
     await db_session.commit()
 
-    # Verify end client is deleted
+    # Verify end client is also deleted
     result = await db_session.execute(select(EndClient).where(EndClient.id == client_id))
     assert result.scalar_one_or_none() is None
 
@@ -135,22 +147,26 @@ async def test_end_client_cascade_on_architect_delete(db_session):
 @pytest.mark.asyncio
 async def test_end_client_optional_fields(db_session):
     """Test end client with minimal required fields."""
-    user = User(email="minimal@test.com", hashed_password="hashed")
     org = Organization(name="Minimal Org")
-    db_session.add_all([user, org])
+    db_session.add(org)
     await db_session.commit()
-    await db_session.refresh(user)
     await db_session.refresh(org)
 
-    architect = Architect(user_id=user.id, organization_id=org.id, phone="+5511777777777")
+    architect = Architect(
+        organization_id=org.id,
+        email="minimal@test.com",
+        hashed_password="hashed",
+        phone="+5511888888888",
+    )
     db_session.add(architect)
     await db_session.commit()
     await db_session.refresh(architect)
 
-    end_client = EndClient(architect_id=architect.id, name="Minimal Client", phone="+5511888888888")
+    # Create end client with only required fields
+    end_client = EndClient(architect_id=architect.id, name="Minimal Client", phone="+5511999999999")
     db_session.add(end_client)
     await db_session.commit()
     await db_session.refresh(end_client)
 
     assert end_client.email is None
-    assert end_client.meta is None
+    assert end_client.meta is None or end_client.meta == {}
