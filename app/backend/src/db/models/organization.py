@@ -12,6 +12,7 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.architect import Architect
+    from src.db.models.authorized_phone import AuthorizedPhone
     from src.db.models.briefing_template import BriefingTemplate
     from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
     from src.db.models.whatsapp_account import WhatsAppAccount
@@ -40,6 +41,9 @@ class Organization(Base):
     # Relationships
     architects: Mapped[list["Architect"]] = relationship(
         "Architect", back_populates="organization", cascade="all, delete-orphan"
+    )
+    authorized_phones: Mapped[list["AuthorizedPhone"]] = relationship(
+        "AuthorizedPhone", back_populates="organization", cascade="all, delete-orphan"
     )
     whatsapp_account_links: Mapped[list["OrganizationWhatsAppAccount"]] = relationship(
         "OrganizationWhatsAppAccount",

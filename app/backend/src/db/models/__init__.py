@@ -1,4 +1,5 @@
 from src.db.models.architect import Architect
+from src.db.models.authorized_phone import AuthorizedPhone
 from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.briefing_analytics import BriefingAnalytics
 from src.db.models.briefing_template import BriefingTemplate
@@ -20,6 +21,7 @@ __all__ = [
     "Organization",
     "OrganizationWhatsAppAccount",
     "Architect",
+    "AuthorizedPhone",
     "EndClient",
     "Briefing",
     "BriefingStatus",
