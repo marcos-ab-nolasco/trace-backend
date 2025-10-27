@@ -7,21 +7,20 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.db.models.architect import Architect
+from src.db.models.briefing import Briefing
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.conversation import Conversation, ConversationType
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
-from src.db.models.template_version import TemplateVersion
-from src.db.models.user import User
 from src.db.session import get_db_session
 from src.schemas.briefing import StartBriefingRequest, StartBriefingResponse
 from src.services.ai import get_ai_service
 from src.services.briefing.extraction_service import ExtractionService
 from src.services.briefing.orchestrator import BriefingOrchestrator
 from src.services.briefing.phone_utils import normalize_phone
+from src.services.template_service import TemplateService
 from src.services.whatsapp.whatsapp_service import WhatsAppService
 
 logger = logging.getLogger(__name__)
@@ -97,15 +96,15 @@ async def start_briefing_from_whatsapp(
         )
 
         # Step 6: Identify appropriate template
-        template_version_id = await extraction_service.identify_template(
-            project_type=extracted_info.project_type or "residencial",  # default fallback
+        template_service = TemplateService(db_session)
+        template_version = await template_service.select_template_version_for_project(
             architect_id=request.architect_id,
+            project_type_slug=(extracted_info.project_type or "residencial"),
         )
 
-        # Get template details for response
-        template_version = await _get_template_version(db_session, template_version_id)
-
         # Step 7: Start briefing session
+        template_version_id = template_version.id
+
         orchestrator = BriefingOrchestrator(db_session)
         briefing = await orchestrator.start_briefing(
             end_client_id=end_client.id,
@@ -136,7 +135,7 @@ async def start_briefing_from_whatsapp(
             db_session=db_session,
             architect=architect,
             end_client=end_client,
-            briefing_id=briefing.id,
+            briefing=briefing,
             whatsapp_context={
                 "phone_number": normalized_phone,
                 "architect_id": str(request.architect_id),
@@ -153,7 +152,11 @@ async def start_briefing_from_whatsapp(
             extra={
                 "briefing_id": str(briefing.id),
                 "client_id": str(end_client.id),
-                "template_category": template_version.template.category,
+                "template_category": (
+                    template_version.template.project_type.slug
+                    if template_version.template and template_version.template.project_type
+                    else template_version.template.category if template_version.template else ""
+                ),
             },
         )
 
@@ -164,7 +167,11 @@ async def start_briefing_from_whatsapp(
             client_name=end_client.name,
             client_phone=end_client.phone,
             first_question=first_question,
-            template_category=template_version.template.category,
+            template_category=(
+                template_version.template.project_type.slug
+                if template_version.template and template_version.template.project_type
+                else template_version.template.category if template_version.template else ""
+            ),
             whatsapp_message_id=whatsapp_result.get("message_id"),
         )
 
@@ -189,7 +196,6 @@ async def _get_architect_and_organization(
     """Get architect and organization, raising 404 if not found."""
     result = await db_session.execute(
         select(Architect, Organization)
-        .join(User, Architect.user_id == User.id)
         .join(Organization, Architect.organization_id == Organization.id)
         .where(Architect.id == architect_id)
     )
@@ -283,26 +289,6 @@ async def _create_or_update_client(
         )
 
 
-async def _get_template_version(
-    db_session: AsyncSession, template_version_id: UUID
-) -> TemplateVersion:
-    """Get template version with template relationship loaded."""
-    result = await db_session.execute(
-        select(TemplateVersion)
-        .options(selectinload(TemplateVersion.template))
-        .where(TemplateVersion.id == template_version_id)
-    )
-    template_version = result.scalar_one_or_none()
-
-    if not template_version:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Template version not found: {template_version_id}",
-        )
-
-    return template_version
-
-
 def _get_whatsapp_service(organization: Organization) -> WhatsAppService:
     """Get WhatsApp service from organization settings."""
     settings = organization.settings or {}
@@ -325,21 +311,21 @@ async def _create_conversation(
     db_session: AsyncSession,
     architect: Architect,
     end_client: EndClient,
-    briefing_id: UUID,
+    briefing: Briefing,
     whatsapp_context: dict,
 ) -> Conversation:
     """Create conversation record linking briefing to WhatsApp context."""
     conversation = Conversation(
-        user_id=architect.user_id,
+        architect_id=architect.id,
         title=f"Briefing - {end_client.name}",
         ai_provider=DEFAULT_AI_PROVIDER,
         ai_model=DEFAULT_EXTRACTION_MODEL,
         conversation_type=ConversationType.WHATSAPP_BRIEFING.value,
         end_client_id=end_client.id,
-        briefing_id=briefing_id,
         whatsapp_context=whatsapp_context,
     )
+    conversation.briefing = briefing
     db_session.add(conversation)
     await db_session.flush()
-    logger.info(f"Created conversation {conversation.id}")
+    logger.info(f"Created conversation {conversation.id} for briefing {briefing.id}")
     return conversation

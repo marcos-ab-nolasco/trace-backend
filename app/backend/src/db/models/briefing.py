@@ -12,8 +12,10 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.briefing_analytics import BriefingAnalytics
+    from src.db.models.conversation import Conversation
     from src.db.models.end_client import EndClient
     from src.db.models.template_version import TemplateVersion
+    from src.db.models.whatsapp_session import WhatsAppSession
 
 import enum
 
@@ -40,6 +42,9 @@ class Briefing(Base):
     template_version_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("template_versions.id", ondelete="RESTRICT"), index=True
     )
+    conversation_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("conversations.id", ondelete="SET NULL"), index=True, unique=True, nullable=True
+    )
     status: Mapped[BriefingStatus] = mapped_column(
         SQLEnum(BriefingStatus, native_enum=False, length=20),
         nullable=False,
@@ -61,6 +66,12 @@ class Briefing(Base):
     template_version: Mapped["TemplateVersion"] = relationship("TemplateVersion")
     analytics: Mapped["BriefingAnalytics | None"] = relationship(
         "BriefingAnalytics", back_populates="briefing", uselist=False
+    )
+    conversation: Mapped["Conversation | None"] = relationship(
+        "Conversation", back_populates="briefing", uselist=False
+    )
+    whatsapp_sessions: Mapped[list["WhatsAppSession"]] = relationship(
+        "WhatsAppSession", back_populates="briefing"
     )
 
     def __repr__(self) -> str:

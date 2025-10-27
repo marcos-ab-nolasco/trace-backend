@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 async def get_conversation_by_id(
-    db: AsyncSession, conversation_id: UUID, user_id: UUID
+    db: AsyncSession, conversation_id: UUID, architect_id: UUID
 ) -> Conversation:
     """Get a conversation by ID with authorization check.
 
     Args:
         db: Database session
         conversation_id: Conversation ID
-        user_id: Current user ID
+        architect_id: Current architect ID
 
     Returns:
         Conversation object
@@ -39,10 +39,12 @@ async def get_conversation_by_id(
             detail="Conversation not found",
         )
 
-    if conversation.user_id != user_id:
+    if conversation.architect_id != architect_id:
         logger.warning(
-            f"Unauthorized conversation access: conv_id={conversation_id} "
-            f"user_id={user_id} owner_id={conversation.user_id}"
+            "Unauthorized conversation access: conv_id=%s architect_id=%s owner_id=%s",
+            conversation_id,
+            architect_id,
+            conversation.architect_id,
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -57,39 +59,39 @@ async def get_conversation_by_id(
     ignore_positionals=[0],
     namespace="chat.user_conversations",
 )
-async def get_user_conversations(db: AsyncSession, user_id: UUID) -> list[Conversation]:
-    """Get all conversations for a user.
+async def get_user_conversations(db: AsyncSession, architect_id: UUID) -> list[Conversation]:
+    """Get all conversations for an architect.
 
     Args:
         db: Database session
-        user_id: User ID
+        architect_id: Architect ID
 
     Returns:
         List of conversations ordered by updated_at desc
     """
     result = await db.execute(
         select(Conversation)
-        .where(Conversation.user_id == user_id)
+        .where(Conversation.architect_id == architect_id)
         .order_by(desc(Conversation.updated_at))
     )
     return list(result.scalars().all())
 
 
 async def create_conversation(
-    db: AsyncSession, conversation_data: ConversationCreate, user_id: UUID
+    db: AsyncSession, conversation_data: ConversationCreate, architect_id: UUID
 ) -> Conversation:
     """Create a new conversation.
 
     Args:
         db: Database session
         conversation_data: Conversation creation data
-        user_id: User ID
+        architect_id: Architect ID
 
     Returns:
         Created conversation
     """
     new_conversation = Conversation(
-        user_id=user_id,
+        architect_id=architect_id,
         title=conversation_data.title,
         ai_provider=conversation_data.ai_provider,
         ai_model=conversation_data.ai_model,
@@ -101,18 +103,24 @@ async def create_conversation(
     await db.refresh(new_conversation)
 
     logger.info(
-        f"Conversation created: conv_id={new_conversation.id} user_id={user_id} "
-        f"provider={conversation_data.ai_provider} model={conversation_data.ai_model}"
+        "Conversation created: conv_id=%s architect_id=%s provider=%s model=%s",
+        new_conversation.id,
+        architect_id,
+        conversation_data.ai_provider,
+        conversation_data.ai_model,
     )
 
     # Invalidate cache for user's conversation list
-    await get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
+    await get_user_conversations.invalidate(db, architect_id)  # type: ignore[attr-defined]
 
     return new_conversation
 
 
 async def update_conversation(
-    db: AsyncSession, conversation_id: UUID, conversation_data: ConversationUpdate, user_id: UUID
+    db: AsyncSession,
+    conversation_id: UUID,
+    conversation_data: ConversationUpdate,
+    architect_id: UUID,
 ) -> Conversation:
     """Update a conversation.
 
@@ -120,7 +128,7 @@ async def update_conversation(
         db: Database session
         conversation_id: Conversation ID
         conversation_data: Update data
-        user_id: Current user ID
+        architect_id: Current architect ID
 
     Returns:
         Updated conversation
@@ -128,7 +136,7 @@ async def update_conversation(
     Raises:
         HTTPException: 404 if not found, 403 if not authorized
     """
-    conversation = await get_conversation_by_id(db, conversation_id, user_id)
+    conversation = await get_conversation_by_id(db, conversation_id, architect_id)
 
     if conversation_data.title is not None:
         conversation.title = conversation_data.title
@@ -139,31 +147,31 @@ async def update_conversation(
     await db.refresh(conversation)
 
     # Invalidate cache for user's conversation list (updated_at changed, affects ordering)
-    await get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
+    await get_user_conversations.invalidate(db, architect_id)  # type: ignore[attr-defined]
 
     return conversation
 
 
-async def delete_conversation(db: AsyncSession, conversation_id: UUID, user_id: UUID) -> None:
+async def delete_conversation(db: AsyncSession, conversation_id: UUID, architect_id: UUID) -> None:
     """Delete a conversation.
 
     Args:
         db: Database session
         conversation_id: Conversation ID
-        user_id: Current user ID
+        architect_id: Current architect ID
 
     Raises:
         HTTPException: 404 if not found, 403 if not authorized
     """
-    conversation = await get_conversation_by_id(db, conversation_id, user_id)
+    conversation = await get_conversation_by_id(db, conversation_id, architect_id)
 
     await db.delete(conversation)
     await db.commit()
 
-    logger.info(f"Conversation deleted: conv_id={conversation_id} user_id={user_id}")
+    logger.info("Conversation deleted: conv_id=%s architect_id=%s", conversation_id, architect_id)
 
     # Invalidate cache for user's conversation list
-    await get_user_conversations.invalidate(db, user_id)  # type: ignore[attr-defined]
+    await get_user_conversations.invalidate(db, architect_id)  # type: ignore[attr-defined]
 
 
 @redis_cache_decorator(
@@ -172,14 +180,14 @@ async def delete_conversation(db: AsyncSession, conversation_id: UUID, user_id: 
     namespace="chat.conversation_messages",
 )
 async def get_conversation_messages(
-    db: AsyncSession, conversation_id: UUID, user_id: UUID
+    db: AsyncSession, conversation_id: UUID, architect_id: UUID
 ) -> list[Message]:
     """Get all messages for a conversation.
 
     Args:
         db: Database session
         conversation_id: Conversation ID
-        user_id: Current user ID
+        architect_id: Current architect ID
 
     Returns:
         List of messages ordered by created_at asc
@@ -188,7 +196,7 @@ async def get_conversation_messages(
         HTTPException: 404 if conversation not found, 403 if not authorized
     """
     # Verify user has access to conversation
-    await get_conversation_by_id(db, conversation_id, user_id)
+    await get_conversation_by_id(db, conversation_id, architect_id)
 
     result = await db.execute(
         select(Message)
@@ -199,7 +207,7 @@ async def get_conversation_messages(
 
 
 async def create_message(
-    db: AsyncSession, conversation_id: UUID, message_data: MessageCreate, user_id: UUID
+    db: AsyncSession, conversation_id: UUID, message_data: MessageCreate, architect_id: UUID
 ) -> tuple[Message, Message]:
     """Create a user message and generate the AI response in the same transaction flow.
 
@@ -207,7 +215,7 @@ async def create_message(
         db: Database session
         conversation_id: Conversation ID
         message_data: Message creation data
-        user_id: Current user ID
+        architect_id: Current architect ID
 
     Returns:
         Tuple with (user_message, assistant_message)
@@ -215,8 +223,8 @@ async def create_message(
     Raises:
         HTTPException: 404 if conversation not found, 403 if not authorized
     """
-    # Verify user has access to conversation and get full record
-    conversation = await get_conversation_by_id(db, conversation_id, user_id)
+    # Verify architect has access to conversation and get full record
+    conversation = await get_conversation_by_id(db, conversation_id, architect_id)
 
     user_message = Message(
         conversation_id=conversation_id,
@@ -230,7 +238,7 @@ async def create_message(
     await db.commit()
     await db.refresh(user_message)
 
-    messages_history = await get_conversation_messages(db, conversation_id, user_id)
+    messages_history = await get_conversation_messages(db, conversation_id, architect_id)
     ai_messages = [{"role": msg.role, "content": msg.content} for msg in messages_history]
 
     logger.info(
@@ -285,7 +293,7 @@ async def create_message(
 
     # Invalidate cache for conversation messages (2 new messages added)
     await get_conversation_messages.invalidate(  # type: ignore[attr-defined]
-        db, conversation_id, user_id
+        db, conversation_id, architect_id
     )
 
     return user_message, assistant_message

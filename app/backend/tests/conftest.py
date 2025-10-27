@@ -26,7 +26,8 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 
 from src.core.cache.client import get_redis_client  # noqa: E402
 from src.core.config import get_settings  # noqa: E402
-from src.db.models.user import User  # noqa: E402
+from src.db.models.architect import Architect  # noqa: E402
+from src.db.models.organization import Organization  # noqa: E402
 from src.db.session import Base, get_db  # noqa: E402
 from src.main import app  # noqa: E402
 
@@ -174,25 +175,48 @@ async def clear_redis(patch_redis: Any):
 
 
 @pytest.fixture
-async def test_user(db_session: AsyncSession) -> User:
-    """Create test user."""
-    from src.core.security import hash_password
+async def test_organization(db_session: AsyncSession) -> Organization:
+    """Create a test organization."""
 
-    user = User(
-        email="test@example.com",
-        hashed_password=hash_password("testpassword123"),
-        full_name="Test User",
-    )
-    db_session.add(user)
+    organization = Organization(name="Test Organization")
+    db_session.add(organization)
     await db_session.commit()
-    await db_session.refresh(user)
-    return user
+    await db_session.refresh(organization)
+    return organization
 
 
 @pytest.fixture
-def auth_headers(test_user: User) -> dict[str, str]:
-    """Create authentication headers for test user."""
+async def test_architect(
+    db_session: AsyncSession, test_organization: Organization
+) -> Architect:
+    """Create test architect (authenticated actor)."""
+    from src.core.security import hash_password
+
+    architect = Architect(
+        organization_id=test_organization.id,
+        email="test@example.com",
+        hashed_password=hash_password("testpassword123"),
+        full_name="Test Architect",
+        phone="+5511999999999",
+        is_authorized=True,
+    )
+    db_session.add(architect)
+    await db_session.commit()
+    await db_session.refresh(architect)
+    return architect
+
+
+@pytest.fixture
+async def test_user(test_architect: Architect) -> Architect:
+    """Backwards-compatible fixture returning the primary architect."""
+
+    return test_architect
+
+
+@pytest.fixture
+def auth_headers(test_architect: Architect) -> dict[str, str]:
+    """Create authentication headers for test architect."""
     from src.core.security import create_access_token
 
-    token = create_access_token(data={"sub": str(test_user.id)})
+    token = create_access_token(data={"sub": str(test_architect.id)})
     return {"Authorization": f"Bearer {token}"}

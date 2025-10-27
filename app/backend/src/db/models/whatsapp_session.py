@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, String, func
@@ -10,6 +11,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.session import Base
 
+if TYPE_CHECKING:
+    from src.db.models.briefing import Briefing
 
 class SessionStatus(str, Enum):
     """Enum for WhatsApp session status."""
@@ -27,6 +30,9 @@ class WhatsAppSession(Base):
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, server_default=func.gen_random_uuid())
     end_client_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("end_clients.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    briefing_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("briefings.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     # Contact information
@@ -48,6 +54,7 @@ class WhatsAppSession(Base):
 
     # Relationships
     end_client: Mapped["EndClient"] = relationship("EndClient", back_populates="whatsapp_sessions")  # type: ignore
+    briefing: Mapped["Briefing | None"] = relationship("Briefing", back_populates="whatsapp_sessions")
     messages: Mapped[list["WhatsAppMessage"]] = relationship(  # type: ignore
         "WhatsAppMessage", back_populates="session", cascade="all, delete-orphan"
     )

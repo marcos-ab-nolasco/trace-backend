@@ -2,7 +2,7 @@
 
 This module provides two rate limiting strategies:
 - IP-based: For public endpoints (auth)
-- User-based: For authenticated endpoints (chat)
+- Architect-based: For authenticated endpoints (chat)
 """
 
 from fastapi import Request
@@ -28,8 +28,8 @@ limiter = Limiter(
 )
 
 
-def get_user_id_or_ip(request: Request) -> str:
-    """Hybrid key function: returns user_id if authenticated, otherwise IP.
+def get_architect_id_or_ip(request: Request) -> str:
+    """Hybrid key function: returns architect_id if authenticated, otherwise IP.
 
     This allows authenticated endpoints to be rate limited per user,
     while unauthenticated requests are limited per IP.
@@ -40,18 +40,18 @@ def get_user_id_or_ip(request: Request) -> str:
     Returns:
         Key string for rate limiting (user:{id} or ip:{address})
     """
-    user_id = getattr(request.state, "user_id", None)
-    if user_id:
-        return f"user:{user_id}"
+    architect_id = getattr(request.state, "architect_id", None)
+    if architect_id:
+        return f"user:{architect_id}"
 
     # Fallback to IP if no user
     client_ip = request.client.host if request.client else "unknown"
     return f"ip:{client_ip}"
 
 
-# Rate limiter for authenticated endpoints (uses user_id or IP)
+# Rate limiter for authenticated endpoints (uses architect_id or IP)
 limiter_authenticated = Limiter(
-    key_func=get_user_id_or_ip,
+    key_func=get_architect_id_or_ip,
     storage_uri=storage_uri,
     strategy="fixed-window",
 )

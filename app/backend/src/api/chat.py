@@ -4,9 +4,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.dependencies import get_current_user
+from src.core.dependencies import get_current_architect
 from src.core.rate_limit import limiter_authenticated
-from src.db.models import User
+from src.db.models import Architect
 from src.db.session import get_db
 from src.schemas.chat import (
     AIProviderList,
@@ -29,20 +29,22 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 async def create_conversation(
     conversation_data: ConversationCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> ConversationRead:
     """Create a new conversation."""
-    conversation = await chat_service.create_conversation(db, conversation_data, current_user.id)
+    conversation = await chat_service.create_conversation(
+        db, conversation_data, current_architect.id
+    )
     return ConversationRead.model_validate(conversation)
 
 
 @router.get("/conversations", response_model=ConversationList)
 async def list_conversations(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> ConversationList:
     """List all conversations for the current user."""
-    conversations = await chat_service.get_user_conversations(db, current_user.id)
+    conversations = await chat_service.get_user_conversations(db, current_architect.id)
     return ConversationList(
         conversations=[ConversationRead.model_validate(c) for c in conversations],
         total=len(conversations),
@@ -53,10 +55,12 @@ async def list_conversations(
 async def get_conversation(
     conversation_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> ConversationRead:
     """Get a conversation by ID."""
-    conversation = await chat_service.get_conversation_by_id(db, conversation_id, current_user.id)
+    conversation = await chat_service.get_conversation_by_id(
+        db, conversation_id, current_architect.id
+    )
     return ConversationRead.model_validate(conversation)
 
 
@@ -65,11 +69,11 @@ async def update_conversation(
     conversation_id: UUID,
     conversation_data: ConversationUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> ConversationRead:
     """Update a conversation."""
     conversation = await chat_service.update_conversation(
-        db, conversation_id, conversation_data, current_user.id
+        db, conversation_id, conversation_data, current_architect.id
     )
     return ConversationRead.model_validate(conversation)
 
@@ -78,20 +82,22 @@ async def update_conversation(
 async def delete_conversation(
     conversation_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> None:
     """Delete a conversation."""
-    await chat_service.delete_conversation(db, conversation_id, current_user.id)
+    await chat_service.delete_conversation(db, conversation_id, current_architect.id)
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=MessageList)
 async def list_messages(
     conversation_id: UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> MessageList:
     """List all messages in a conversation."""
-    messages = await chat_service.get_conversation_messages(db, conversation_id, current_user.id)
+    messages = await chat_service.get_conversation_messages(
+        db, conversation_id, current_architect.id
+    )
     return MessageList(
         messages=[MessageRead.model_validate(m) for m in messages],
         total=len(messages),
@@ -100,7 +106,7 @@ async def list_messages(
 
 @router.get("/providers", response_model=AIProviderList)
 async def list_providers(
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> AIProviderList:
     """Expose configured AI providers for the frontend UI."""
 
@@ -119,11 +125,11 @@ async def create_message(
     conversation_id: UUID,
     message_data: MessageCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> MessageCreateResponse:
     """Create a new message and trigger the AI-generated assistant reply."""
     user_message, assistant_message = await chat_service.create_message(
-        db, conversation_id, message_data, current_user.id
+        db, conversation_id, message_data, current_architect.id
     )
     return MessageCreateResponse(
         user_message=MessageRead.model_validate(user_message),

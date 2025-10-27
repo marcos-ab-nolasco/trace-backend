@@ -92,6 +92,10 @@ class AnswerProcessorService:
                 }
 
             # Step 5: Process answer via orchestrator
+            if wa_session.briefing_id != active_briefing.id:
+                wa_session.briefing_id = active_briefing.id
+                await self.db_session.flush()
+
             current_question = active_briefing.current_question_order
             updated_briefing = await self.orchestrator.process_answer(
                 briefing_id=active_briefing.id,

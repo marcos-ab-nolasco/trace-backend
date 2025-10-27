@@ -41,7 +41,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add middleware to populate user_id in request.state (must be before rate limiting)
+# Add middleware to populate architect_id in request.state (must be before rate limiting)
 app.add_middleware(UserStateMiddleware)
 
 app.add_middleware(LoggingMiddleware)

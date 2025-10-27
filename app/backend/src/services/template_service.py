@@ -1,104 +1,109 @@
 """Service layer for briefing template management."""
 
+from __future__ import annotations
+
+import logging
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, case, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from src.db.models.architect import Architect
 from src.db.models.briefing_template import BriefingTemplate
+from src.db.models.project_type import ProjectType
 from src.db.models.template_version import TemplateVersion
-from src.schemas.template import (
-    BriefingTemplateCreate,
-    BriefingTemplateUpdate,
-    QuestionSchema,
-)
+from src.schemas.template import BriefingTemplateCreate, BriefingTemplateUpdate
+
+logger = logging.getLogger(__name__)
 
 
 class TemplateService:
     """Service for managing briefing templates."""
 
     def __init__(self, db_session: AsyncSession):
-        """Initialize service with database session."""
         self.db_session = db_session
+
+    async def _get_architect(self, architect_id: UUID) -> Architect:
+        result = await self.db_session.execute(
+            select(Architect).where(Architect.id == architect_id)
+        )
+        architect = result.scalar_one_or_none()
+        if not architect:
+            raise ValueError("Architect not found")
+        return architect
+
+    async def _get_project_type(self, slug: str) -> ProjectType | None:
+        result = await self.db_session.execute(
+            select(ProjectType).where(
+                ProjectType.slug == slug.lower(), ProjectType.is_active == True  # noqa: E712
+            )
+        )
+        return result.scalar_one_or_none()
 
     async def list_templates(
         self,
-        user_id: UUID,
-        category: str | None = None,
+        architect_id: UUID,
+        project_type_slug: str | None = None,
     ) -> list[BriefingTemplate]:
-        """
-        List templates accessible to user (global + user's custom templates).
+        """List templates accessible to an architect (global + organization-owned)."""
 
-        Args:
-            user_id: User ID to get templates for
-            category: Optional category filter
+        architect = await self._get_architect(architect_id)
 
-        Returns:
-            List of templates with current versions loaded
-        """
-        # Get architect for user
-        architect_result = await self.db_session.execute(
-            select(Architect).where(Architect.user_id == user_id)
-        )
-        architect = architect_result.scalar_one_or_none()
+        filters = [
+            or_(
+                BriefingTemplate.is_global == True,  # noqa: E712
+                BriefingTemplate.organization_id == architect.organization_id,
+            )
+        ]
 
-        # Build query: global templates OR templates owned by architect
+        if project_type_slug:
+            project_type = await self._get_project_type(project_type_slug)
+            if project_type:
+                filters.append(BriefingTemplate.project_type_id == project_type.id)
+            else:
+                logger.warning(
+                    "Project type slug %s not found; returning all templates",
+                    project_type_slug,
+                )
+
         query = (
             select(BriefingTemplate)
-            .options(selectinload(BriefingTemplate.current_version))
-            .where(
-                or_(
-                    BriefingTemplate.is_global == True,  # noqa: E712
-                    BriefingTemplate.architect_id == (architect.id if architect else None),
-                )
+            .options(
+                selectinload(BriefingTemplate.current_version),
+                selectinload(BriefingTemplate.project_type),
+            )
+            .where(and_(*filters))
+            .order_by(
+                BriefingTemplate.is_global.asc(),
+                BriefingTemplate.name,
             )
         )
 
-        # Add category filter if provided
-        if category:
-            query = query.where(BriefingTemplate.category == category)
-
-        # Order by: global first, then custom, then by name
-        query = query.order_by(BriefingTemplate.is_global.desc(), BriefingTemplate.name)
-
         result = await self.db_session.execute(query)
-        templates = result.scalars().all()
-
-        return list(templates)
+        return list(result.scalars().all())
 
     async def get_template_by_id(
         self,
         template_id: UUID,
-        user_id: UUID,
+        architect_id: UUID,
     ) -> BriefingTemplate | None:
-        """
-        Get template by ID if user has access to it.
+        """Return template if architect has access."""
 
-        Args:
-            template_id: Template ID
-            user_id: User ID requesting the template
+        architect = await self._get_architect(architect_id)
 
-        Returns:
-            Template if found and accessible, None otherwise
-        """
-        # Get architect for user
-        architect_result = await self.db_session.execute(
-            select(Architect).where(Architect.user_id == user_id)
-        )
-        architect = architect_result.scalar_one_or_none()
-
-        # Query template with access check
         query = (
             select(BriefingTemplate)
-            .options(selectinload(BriefingTemplate.current_version))
+            .options(
+                selectinload(BriefingTemplate.current_version),
+                selectinload(BriefingTemplate.project_type),
+            )
             .where(
                 and_(
                     BriefingTemplate.id == template_id,
                     or_(
                         BriefingTemplate.is_global == True,  # noqa: E712
-                        BriefingTemplate.architect_id == (architect.id if architect else None),
+                        BriefingTemplate.organization_id == architect.organization_id,
                     ),
                 )
             )
@@ -109,43 +114,28 @@ class TemplateService:
 
     async def create_template(
         self,
-        user_id: UUID,
+        architect_id: UUID,
         template_data: BriefingTemplateCreate,
     ) -> BriefingTemplate:
-        """
-        Create a new custom template for architect.
+        """Create a new organization-level template."""
 
-        Args:
-            user_id: User ID creating the template
-            template_data: Template creation data
+        architect = await self._get_architect(architect_id)
+        project_type = await self._get_project_type(template_data.project_type_slug)
+        if not project_type:
+            raise ValueError(f"Unknown project type: {template_data.project_type_slug}")
 
-        Returns:
-            Created template with initial version
-
-        Raises:
-            ValueError: If user is not an architect
-        """
-        # Get architect for user
-        architect_result = await self.db_session.execute(
-            select(Architect).where(Architect.user_id == user_id)
-        )
-        architect = architect_result.scalar_one_or_none()
-
-        if not architect:
-            raise ValueError("User is not an architect")
-
-        # Create template
         template = BriefingTemplate(
             name=template_data.name,
-            category=template_data.category,
+            category=template_data.project_type_slug,
             description=template_data.description,
             is_global=False,
-            architect_id=architect.id,
+            organization_id=architect.organization_id,
+            created_by_architect_id=architect.id,
+            project_type_id=project_type.id,
         )
         self.db_session.add(template)
         await self.db_session.flush()
 
-        # Create initial version
         version = TemplateVersion(
             template_id=template.id,
             version_number=1,
@@ -156,11 +146,9 @@ class TemplateService:
         self.db_session.add(version)
         await self.db_session.flush()
 
-        # Set current version
         template.current_version_id = version.id
         await self.db_session.commit()
 
-        # Refresh to load all attributes and relationships
         await self.db_session.refresh(template)
         await self.db_session.refresh(template, ["current_version"])
 
@@ -169,33 +157,13 @@ class TemplateService:
     async def update_template(
         self,
         template_id: UUID,
-        user_id: UUID,
+        architect_id: UUID,
         update_data: BriefingTemplateUpdate,
     ) -> BriefingTemplate:
-        """
-        Update template by creating a new version.
+        """Create a new version for an organization-owned template."""
 
-        Args:
-            template_id: Template ID to update
-            user_id: User ID performing the update
-            update_data: Update data
+        architect = await self._get_architect(architect_id)
 
-        Returns:
-            Updated template with new version
-
-        Raises:
-            ValueError: If template not found or user lacks permission
-        """
-        # Get architect for user
-        architect_result = await self.db_session.execute(
-            select(Architect).where(Architect.user_id == user_id)
-        )
-        architect = architect_result.scalar_one_or_none()
-
-        if not architect:
-            raise ValueError("User is not an architect")
-
-        # Get template
         template_result = await self.db_session.execute(
             select(BriefingTemplate)
             .options(selectinload(BriefingTemplate.current_version))
@@ -206,19 +174,21 @@ class TemplateService:
         if not template:
             raise ValueError("Template not found")
 
-        # Check permissions: must own template (not global)
-        if template.is_global or template.architect_id != architect.id:
+        if template.is_global or template.organization_id != architect.organization_id:
             raise PermissionError("Cannot update this template")
 
-        # Update basic fields if provided
         if update_data.name is not None:
             template.name = update_data.name
         if update_data.description is not None:
             template.description = update_data.description
+        if update_data.project_type_slug is not None:
+            project_type = await self._get_project_type(update_data.project_type_slug)
+            if not project_type:
+                raise ValueError(f"Unknown project type: {update_data.project_type_slug}")
+            template.project_type_id = project_type.id
+            template.category = update_data.project_type_slug
 
-        # Create new version if questions are provided
         if update_data.questions is not None:
-            # Get current max version number
             version_result = await self.db_session.execute(
                 select(TemplateVersion.version_number)
                 .where(TemplateVersion.template_id == template_id)
@@ -227,16 +197,16 @@ class TemplateService:
             )
             max_version = version_result.scalar_one_or_none() or 0
 
-            # Deactivate current version
             if template.current_version_id:
                 current_version_result = await self.db_session.execute(
-                    select(TemplateVersion).where(TemplateVersion.id == template.current_version_id)
+                    select(TemplateVersion).where(
+                        TemplateVersion.id == template.current_version_id
+                    )
                 )
                 current_version = current_version_result.scalar_one_or_none()
                 if current_version:
                     current_version.is_active = False
 
-            # Create new version
             new_version = TemplateVersion(
                 template_id=template.id,
                 version_number=max_version + 1,
@@ -246,13 +216,9 @@ class TemplateService:
             )
             self.db_session.add(new_version)
             await self.db_session.flush()
-
-            # Update current version
             template.current_version_id = new_version.id
 
         await self.db_session.commit()
-
-        # Refresh to load all attributes and relationships
         await self.db_session.refresh(template)
         await self.db_session.refresh(template, ["current_version"])
 
@@ -261,32 +227,89 @@ class TemplateService:
     async def get_template_versions(
         self,
         template_id: UUID,
-        user_id: UUID,
+        architect_id: UUID,
     ) -> list[TemplateVersion]:
-        """
-        Get version history of a template.
+        """List template versions if architect can access the template."""
 
-        Args:
-            template_id: Template ID
-            user_id: User ID requesting versions
-
-        Returns:
-            List of versions ordered by version_number descending
-
-        Raises:
-            ValueError: If template not found or user lacks access
-        """
-        # First check if user has access to template
-        template = await self.get_template_by_id(template_id, user_id)
+        template = await self.get_template_by_id(template_id, architect_id)
         if not template:
             raise ValueError("Template not found or access denied")
 
-        # Get all versions
         versions_result = await self.db_session.execute(
             select(TemplateVersion)
             .where(TemplateVersion.template_id == template_id)
             .order_by(TemplateVersion.version_number.desc())
         )
-        versions = versions_result.scalars().all()
+        return list(versions_result.scalars().all())
 
-        return list(versions)
+    async def select_template_version_for_project(
+        self,
+        architect_id: UUID,
+        project_type_slug: str,
+    ) -> TemplateVersion:
+        """Select the best template version for the given project type."""
+
+        architect = await self._get_architect(architect_id)
+        project_type = await self._get_project_type(project_type_slug)
+
+        filters = [
+            TemplateVersion.id == BriefingTemplate.current_version_id,
+            TemplateVersion.is_active == True,  # noqa: E712
+            or_(
+                BriefingTemplate.is_global == True,  # noqa: E712
+                BriefingTemplate.organization_id == architect.organization_id,
+            ),
+        ]
+
+        if project_type:
+            filters.append(BriefingTemplate.project_type_id == project_type.id)
+        else:
+            logger.warning(
+                "Project type slug %s not found; falling back to any accessible template",
+                project_type_slug,
+            )
+
+        query = (
+            select(TemplateVersion)
+            .join(BriefingTemplate, TemplateVersion.template_id == BriefingTemplate.id)
+            .options(
+                selectinload(TemplateVersion.template).selectinload(BriefingTemplate.project_type)
+            )
+            .where(and_(*filters))
+            .order_by(
+                case(
+                    (BriefingTemplate.organization_id == architect.organization_id, 0),
+                    else_=1,
+                ),
+                TemplateVersion.created_at.desc(),
+            )
+            .limit(1)
+        )
+
+        result = await self.db_session.execute(query)
+        version = result.scalar_one_or_none()
+
+        if version:
+            return version
+
+        fallback_query = (
+            select(TemplateVersion)
+            .join(BriefingTemplate, TemplateVersion.template_id == BriefingTemplate.id)
+            .options(
+                selectinload(TemplateVersion.template).selectinload(BriefingTemplate.project_type)
+            )
+            .where(
+                TemplateVersion.id == BriefingTemplate.current_version_id,
+                TemplateVersion.is_active == True,  # noqa: E712
+                BriefingTemplate.is_global == True,  # noqa: E712
+            )
+            .order_by(TemplateVersion.created_at.desc())
+            .limit(1)
+        )
+        fallback_result = await self.db_session.execute(fallback_query)
+        fallback_version = fallback_result.scalar_one_or_none()
+
+        if fallback_version:
+            return fallback_version
+
+        raise ValueError("No template version available for the requested project type")

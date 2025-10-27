@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 # Question Schema (embedded in template version)
@@ -69,18 +69,18 @@ class TemplateVersionRead(TemplateVersionBase):
 class BriefingTemplateBase(BaseModel):
     """Base schema for briefing template."""
 
-    name: str = Field(..., min_length=1, max_length=255)
-    category: str = Field(..., description="Category: residencial, reforma, comercial, incorporacao")
-    description: str | None = None
+    model_config = ConfigDict(populate_by_name=True)
 
-    @field_validator("category")
-    @classmethod
-    def validate_category(cls, v: str) -> str:
-        """Validate category is one of allowed categories."""
-        allowed_categories = {"residencial", "reforma", "comercial", "incorporacao"}
-        if v not in allowed_categories:
-            raise ValueError(f"Category must be one of {allowed_categories}")
-        return v
+    name: str = Field(..., min_length=1, max_length=255)
+    project_type_slug: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        validation_alias=AliasChoices("project_type_slug", "category"),
+        serialization_alias="project_type_slug",
+        description="Slug do tipo de projeto (ex.: reforma, residencial).",
+    )
+    description: str | None = None
 
 
 class BriefingTemplateCreate(BriefingTemplateBase):
@@ -94,10 +94,19 @@ class BriefingTemplateCreate(BriefingTemplateBase):
 class BriefingTemplateUpdate(BaseModel):
     """Schema for updating a template (creates new version)."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
     questions: list[QuestionSchema] | None = Field(None, min_length=1)
     change_description: str | None = Field(None, max_length=500)
+    project_type_slug: str | None = Field(
+        None,
+        min_length=1,
+        max_length=100,
+        validation_alias=AliasChoices("project_type_slug", "category"),
+        serialization_alias="project_type_slug",
+    )
 
 
 class BriefingTemplateRead(BriefingTemplateBase):
@@ -105,7 +114,8 @@ class BriefingTemplateRead(BriefingTemplateBase):
 
     id: UUID
     is_global: bool
-    architect_id: UUID | None
+    organization_id: UUID | None
+    created_by_architect_id: UUID | None
     current_version_id: UUID | None
     created_at: datetime
     updated_at: datetime

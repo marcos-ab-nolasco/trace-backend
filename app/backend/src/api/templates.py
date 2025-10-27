@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.dependencies import get_current_user_id
+from src.core.dependencies import get_current_architect_id
 from src.db.session import get_db_session
 from src.schemas.template import (
     BriefingTemplateCreate,
@@ -21,9 +21,9 @@ router = APIRouter(prefix="/api/templates", tags=["templates"])
 
 @router.get("", response_model=BriefingTemplateList)
 async def list_templates(
-    category: str | None = Query(None, description="Filter by category"),
+    project_type: str | None = Query(None, description="Filter by project type slug"),
     db_session: AsyncSession = Depends(get_db_session),
-    user_id: UUID = Depends(get_current_user_id),
+    architect_id: UUID = Depends(get_current_architect_id),
 ) -> BriefingTemplateList:
     """
     List all templates accessible to the current user.
@@ -31,7 +31,9 @@ async def list_templates(
     Returns global templates and user's custom templates.
     """
     service = TemplateService(db_session)
-    templates = await service.list_templates(user_id=user_id, category=category)
+    templates = await service.list_templates(
+        architect_id=architect_id, project_type_slug=project_type
+    )
 
     # Convert to response models
     templates_with_versions = [
@@ -45,7 +47,7 @@ async def list_templates(
 async def create_template(
     template_data: BriefingTemplateCreate,
     db_session: AsyncSession = Depends(get_db_session),
-    user_id: UUID = Depends(get_current_user_id),
+    architect_id: UUID = Depends(get_current_architect_id),
 ) -> BriefingTemplateWithVersion:
     """
     Create a new custom template.
@@ -55,7 +57,9 @@ async def create_template(
     service = TemplateService(db_session)
 
     try:
-        template = await service.create_template(user_id=user_id, template_data=template_data)
+        template = await service.create_template(
+            architect_id=architect_id, template_data=template_data
+        )
         return BriefingTemplateWithVersion.model_validate(template)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
@@ -65,7 +69,7 @@ async def create_template(
 async def get_template(
     template_id: UUID,
     db_session: AsyncSession = Depends(get_db_session),
-    user_id: UUID = Depends(get_current_user_id),
+    architect_id: UUID = Depends(get_current_architect_id),
 ) -> BriefingTemplateWithVersion:
     """
     Get template details by ID.
@@ -73,7 +77,9 @@ async def get_template(
     Returns 404 if template not found or user doesn't have access.
     """
     service = TemplateService(db_session)
-    template = await service.get_template_by_id(template_id=template_id, user_id=user_id)
+    template = await service.get_template_by_id(
+        template_id=template_id, architect_id=architect_id
+    )
 
     if not template:
         raise HTTPException(
@@ -88,7 +94,7 @@ async def update_template(
     template_id: UUID,
     update_data: BriefingTemplateUpdate,
     db_session: AsyncSession = Depends(get_db_session),
-    user_id: UUID = Depends(get_current_user_id),
+    architect_id: UUID = Depends(get_current_architect_id),
 ) -> BriefingTemplateWithVersion:
     """
     Update template by creating a new version.
@@ -99,7 +105,7 @@ async def update_template(
 
     try:
         template = await service.update_template(
-            template_id=template_id, user_id=user_id, update_data=update_data
+            template_id=template_id, architect_id=architect_id, update_data=update_data
         )
         return BriefingTemplateWithVersion.model_validate(template)
     except ValueError as e:
@@ -112,7 +118,7 @@ async def update_template(
 async def get_template_versions(
     template_id: UUID,
     db_session: AsyncSession = Depends(get_db_session),
-    user_id: UUID = Depends(get_current_user_id),
+    architect_id: UUID = Depends(get_current_architect_id),
 ) -> dict:
     """
     Get version history of a template.
@@ -123,7 +129,7 @@ async def get_template_versions(
 
     try:
         versions = await service.get_template_versions(
-            template_id=template_id, user_id=user_id
+            template_id=template_id, architect_id=architect_id
         )
         return {
             "versions": [TemplateVersionRead.model_validate(v) for v in versions],

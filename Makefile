@@ -82,8 +82,11 @@
 	@timeout 30 bash -c 'until docker compose -f infrastructure/docker-compose.yml ps postgres_test 2>/dev/null | grep -q "healthy"; do sleep 1; done' || (echo "Timeout waiting for test database" && exit 1)
 	@echo "Test database is ready!"
 
-    test-down: ## Stop test database
+    test-stop: ## Stop test database
 	docker compose -f infrastructure/docker-compose.yml stop postgres_test
+
+    test-down: ## Remove test database
+	docker compose -f infrastructure/docker-compose.yml down postgres_test
 
     test-backend: ## Run backend tests (requires test database running)
 	cd app/backend && pytest -v
