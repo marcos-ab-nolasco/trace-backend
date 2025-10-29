@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from src.api import auth, briefings, chat, templates, whatsapp_webhook
+from src.api import auth, briefings, chat, organizations, templates, whatsapp_webhook
 from src.core.config import get_settings
 from src.core.lifespan import lifespan
 from src.core.logging_config.middleware import LoggingMiddleware
@@ -50,6 +50,7 @@ app.add_middleware(LoggingMiddleware)
 app.include_router(auth.router)
 app.include_router(briefings.router)
 app.include_router(chat.router)
+app.include_router(organizations.router)
 app.include_router(templates.router)
 app.include_router(whatsapp_webhook.router)
 
