@@ -261,7 +261,9 @@ async def test_create_whatsapp_session(db_session: AsyncSession):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    client = EndClient(architect_id=architect.id, name="Client Name", phone="+5511999999999")
+    client = EndClient(
+        organization_id=org.id, architect_id=architect.id, name="Client Name", phone="+5511999999999"
+    )
     db_session.add(client)
     await db_session.commit()
     await db_session.refresh(client)
@@ -304,7 +306,9 @@ async def test_whatsapp_session_cascade_on_client_delete(db_session: AsyncSessio
     await db_session.commit()
     await db_session.refresh(architect)
 
-    client = EndClient(architect_id=architect.id, name="Delete Me", phone="+5511666666666")
+    client = EndClient(
+        organization_id=org.id, architect_id=architect.id, name="Delete Me", phone="+5511666666666"
+    )
     db_session.add(client)
     await db_session.commit()
     await db_session.refresh(client)
@@ -345,7 +349,9 @@ async def test_create_whatsapp_message(db_session: AsyncSession):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    client = EndClient(architect_id=architect.id, name="Msg Client", phone="+5511444444444")
+    client = EndClient(
+        organization_id=org.id, architect_id=architect.id, name="Msg Client", phone="+5511444444444"
+    )
     db_session.add(client)
     await db_session.commit()
     await db_session.refresh(client)
@@ -396,7 +402,12 @@ async def test_whatsapp_message_cascade_on_session_delete(db_session: AsyncSessi
     await db_session.commit()
     await db_session.refresh(architect)
 
-    client = EndClient(architect_id=architect.id, name="Cascade Client", phone="+5511222222222")
+    client = EndClient(
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Cascade Client",
+        phone="+5511222222222",
+    )
     db_session.add(client)
     await db_session.commit()
     await db_session.refresh(client)
@@ -447,7 +458,9 @@ async def test_whatsapp_session_relationship_with_messages(db_session: AsyncSess
     await db_session.commit()
     await db_session.refresh(architect)
 
-    client = EndClient(architect_id=architect.id, name="Rel Client", phone="+5511000000000")
+    client = EndClient(
+        organization_id=org.id, architect_id=architect.id, name="Rel Client", phone="+5511000000000"
+    )
     db_session.add(client)
     await db_session.commit()
     await db_session.refresh(client)

@@ -176,10 +176,18 @@ async def test_architect_end_clients_relationship(db_session):
 
     # Create end clients
     client1 = EndClient(
-        architect_id=architect.id, name="Client One", phone="+5511666666666", email="c1@test.com"
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Client One",
+        phone="+5511666666666",
+        email="c1@test.com",
     )
     client2 = EndClient(
-        architect_id=architect.id, name="Client Two", phone="+5511777777777", email="c2@test.com"
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Client Two",
+        phone="+5511777777777",
+        email="c2@test.com",
     )
     db_session.add_all([client1, client2])
     await db_session.commit()

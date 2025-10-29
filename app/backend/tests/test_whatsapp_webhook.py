@@ -118,7 +118,10 @@ async def test_webhook_receive_text_message(
     await db_session.flush()
 
     end_client = EndClient(
-        architect_id=architect.id, name="Test Client", phone="+5511999999999"
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Test Client",
+        phone="+5511999999999",
     )
     db_session.add(end_client)
     await db_session.flush()

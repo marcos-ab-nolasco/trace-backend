@@ -81,9 +81,12 @@ async def test_template(db_session: AsyncSession) -> BriefingTemplate:
 
 
 @pytest.fixture
-async def test_client(db_session: AsyncSession, test_architect: Architect) -> EndClient:
+async def test_client(
+    db_session: AsyncSession, test_organization: Organization, test_architect: Architect
+) -> EndClient:
     """Create test end client."""
     client = EndClient(
+        organization_id=test_organization.id,
         architect_id=test_architect.id,
         name="João Silva",
         phone="+5511987654321",

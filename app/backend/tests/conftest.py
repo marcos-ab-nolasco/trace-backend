@@ -27,6 +27,7 @@ from sqlalchemy.pool import NullPool  # noqa: E402
 from src.core.cache.client import get_redis_client  # noqa: E402
 from src.core.config import get_settings  # noqa: E402
 from src.db.models.architect import Architect  # noqa: E402
+from src.db.models.end_client import EndClient  # noqa: E402
 from src.db.models.organization import Organization  # noqa: E402
 from src.db.models.project_type import ProjectType  # noqa: E402
 from src.db.session import Base, get_db  # noqa: E402
@@ -266,3 +267,21 @@ async def project_type_comercial(db_session: AsyncSession) -> ProjectType:
     await db_session.commit()
     await db_session.refresh(project_type)
     return project_type
+
+
+@pytest.fixture
+async def test_end_client(
+    db_session: AsyncSession, test_organization: Organization, test_architect: Architect
+) -> EndClient:
+    """Create a test end client."""
+    end_client = EndClient(
+        organization_id=test_organization.id,
+        architect_id=test_architect.id,
+        name="João Silva",
+        phone="+5511987654321",
+        email="joao@example.com",
+    )
+    db_session.add(end_client)
+    await db_session.commit()
+    await db_session.refresh(end_client)
+    return end_client

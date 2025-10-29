@@ -66,7 +66,9 @@ async def test_create_whatsapp_briefing_conversation(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    end_client = EndClient(architect_id=architect.id, name="Client", phone="+5511222222222")
+    end_client = EndClient(
+        organization_id=org.id, architect_id=architect.id, name="Client", phone="+5511222222222"
+    )
     db_session.add(end_client)
     await db_session.commit()
     await db_session.refresh(end_client)
@@ -112,7 +114,9 @@ async def test_conversation_relationship_with_end_client(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    end_client = EndClient(architect_id=architect.id, name="Test", phone="+5511444444444")
+    end_client = EndClient(
+        organization_id=org.id, architect_id=architect.id, name="Test", phone="+5511444444444"
+    )
     db_session.add(end_client)
     await db_session.commit()
     await db_session.refresh(end_client)

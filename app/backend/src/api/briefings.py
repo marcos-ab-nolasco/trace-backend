@@ -90,6 +90,7 @@ async def start_briefing_from_whatsapp(
         # Step 5: Create or update EndClient
         end_client = await _create_or_update_client(
             db_session=db_session,
+            organization_id=organization.id,
             architect_id=request.architect_id,
             name=extracted_info.name,  # type: ignore
             phone=normalized_phone,
@@ -245,33 +246,36 @@ def _validate_extraction(extracted_info) -> None:
 
 async def _create_or_update_client(
     db_session: AsyncSession,
+    organization_id: UUID,
     architect_id: UUID,
     name: str,
     phone: str,
 ) -> EndClient:
     """Create new client or update existing one with same phone number.
 
-    Handles unique constraint on (architect_id, phone) by updating existing client.
+    Handles unique constraint on (organization_id, phone) by updating existing client.
     """
     try:
-        # Try to get existing client with same phone
+        # Try to get existing client with same phone in the organization
         result = await db_session.execute(
             select(EndClient).where(
-                EndClient.architect_id == architect_id,
+                EndClient.organization_id == organization_id,
                 EndClient.phone == phone,
             )
         )
         existing_client = result.scalar_one_or_none()
 
         if existing_client:
-            # Update existing client
+            # Update existing client (name and architect_id may have changed)
             logger.info(f"Updating existing client {existing_client.id}")
             existing_client.name = name
+            existing_client.architect_id = architect_id  # Update architect if needed
             await db_session.flush()
             return existing_client
 
         # Create new client
         new_client = EndClient(
+            organization_id=organization_id,
             architect_id=architect_id,
             name=name,
             phone=phone,

@@ -105,9 +105,12 @@ async def test_templates(db_session: AsyncSession) -> dict[str, BriefingTemplate
 
 
 @pytest.fixture
-async def existing_client(db_session: AsyncSession, test_architect: Architect) -> EndClient:
+async def existing_client(
+    db_session: AsyncSession, test_organization: Organization, test_architect: Architect
+) -> EndClient:
     """Create existing end client with normalized phone."""
     client = EndClient(
+        organization_id=test_organization.id,
         architect_id=test_architect.id,
         name="Existing Client",
         phone="+5511987654321",  # Already normalized

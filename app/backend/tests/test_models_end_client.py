@@ -31,6 +31,7 @@ async def test_create_end_client(db_session):
 
     # Create end client
     end_client = EndClient(
+        organization_id=org.id,
         architect_id=architect.id,
         name="Maria Silva",
         phone="+5511987654321",
@@ -42,6 +43,7 @@ async def test_create_end_client(db_session):
     await db_session.refresh(end_client)
 
     assert isinstance(end_client.id, UUID)
+    assert end_client.organization_id == org.id
     assert end_client.architect_id == architect.id
     assert end_client.name == "Maria Silva"
     assert end_client.phone == "+5511987654321"
@@ -69,7 +71,9 @@ async def test_end_client_relationship_with_architect(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    end_client = EndClient(architect_id=architect.id, name="João Santos", phone="+5511333333333")
+    end_client = EndClient(
+        organization_id=org.id, architect_id=architect.id, name="João Santos", phone="+5511333333333"
+    )
     db_session.add(end_client)
     await db_session.commit()
     await db_session.refresh(end_client)
@@ -83,33 +87,103 @@ async def test_end_client_relationship_with_architect(db_session):
 
 
 @pytest.mark.asyncio
-async def test_end_client_unique_phone_per_architect(db_session):
-    """Test that phone is unique per architect."""
+async def test_end_client_unique_phone_per_organization(db_session):
+    """Test that phone is unique per organization (not per architect)."""
     org = Organization(name="Unique Org")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    architect = Architect(
+    # Create two architects in same organization
+    architect1 = Architect(
         organization_id=org.id,
-        email="unique@test.com",
+        email="arch1@test.com",
         hashed_password="hashed",
         phone="+5511444444444",
     )
-    db_session.add(architect)
+    architect2 = Architect(
+        organization_id=org.id,
+        email="arch2@test.com",
+        hashed_password="hashed",
+        phone="+5511444444445",
+    )
+    db_session.add_all([architect1, architect2])
     await db_session.commit()
-    await db_session.refresh(architect)
+    await db_session.refresh(architect1)
+    await db_session.refresh(architect2)
 
-    # Create first client
-    client1 = EndClient(architect_id=architect.id, name="Client 1", phone="+5511555555555")
+    # Create first client with architect1
+    client1 = EndClient(
+        organization_id=org.id,
+        architect_id=architect1.id,
+        name="Client 1",
+        phone="+5511555555555",
+    )
     db_session.add(client1)
     await db_session.commit()
 
-    # Try to create another client with same phone for same architect
-    client2 = EndClient(architect_id=architect.id, name="Client 2", phone="+5511555555555")
+    # Try to create another client with same phone in same org (different architect)
+    # This should FAIL because phone must be unique per organization
+    client2 = EndClient(
+        organization_id=org.id,
+        architect_id=architect2.id,
+        name="Client 2",
+        phone="+5511555555555",
+    )
     db_session.add(client2)
     with pytest.raises(Exception):  # IntegrityError
         await db_session.commit()
+
+
+@pytest.mark.asyncio
+async def test_end_client_same_phone_different_organizations(db_session):
+    """Test that same phone can exist in different organizations."""
+    # Create two different organizations
+    org1 = Organization(name="Org 1")
+    org2 = Organization(name="Org 2")
+    db_session.add_all([org1, org2])
+    await db_session.commit()
+    await db_session.refresh(org1)
+    await db_session.refresh(org2)
+
+    # Create architects for each organization
+    architect1 = Architect(
+        organization_id=org1.id,
+        email="arch1@org1.com",
+        hashed_password="hashed",
+        phone="+5511111111111",
+    )
+    architect2 = Architect(
+        organization_id=org2.id,
+        email="arch2@org2.com",
+        hashed_password="hashed",
+        phone="+5511222222222",
+    )
+    db_session.add_all([architect1, architect2])
+    await db_session.commit()
+    await db_session.refresh(architect1)
+    await db_session.refresh(architect2)
+
+    # Same phone number in different organizations should be OK
+    client1 = EndClient(
+        organization_id=org1.id,
+        architect_id=architect1.id,
+        name="Client in Org 1",
+        phone="+5511999999999",
+    )
+    client2 = EndClient(
+        organization_id=org2.id,
+        architect_id=architect2.id,
+        name="Client in Org 2",
+        phone="+5511999999999",
+    )
+    db_session.add_all([client1, client2])
+    await db_session.commit()
+
+    # Both should be created successfully
+    result = await db_session.execute(select(EndClient).where(EndClient.phone == "+5511999999999"))
+    clients = result.scalars().all()
+    assert len(clients) == 2
 
 
 @pytest.mark.asyncio
@@ -130,7 +204,12 @@ async def test_end_client_cascade_on_architect_delete(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    end_client = EndClient(architect_id=architect.id, name="Will be deleted", phone="+5511777777777")
+    end_client = EndClient(
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Will be deleted",
+        phone="+5511777777777",
+    )
     db_session.add(end_client)
     await db_session.commit()
     client_id = end_client.id
@@ -163,7 +242,9 @@ async def test_end_client_optional_fields(db_session):
     await db_session.refresh(architect)
 
     # Create end client with only required fields
-    end_client = EndClient(architect_id=architect.id, name="Minimal Client", phone="+5511999999999")
+    end_client = EndClient(
+        organization_id=org.id, architect_id=architect.id, name="Minimal Client", phone="+5511999999999"
+    )
     db_session.add(end_client)
     await db_session.commit()
     await db_session.refresh(end_client)
