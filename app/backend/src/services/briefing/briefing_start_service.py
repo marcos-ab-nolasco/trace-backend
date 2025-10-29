@@ -68,7 +68,7 @@ class BriefingStartService:
             end_client_id=end_client.id,
             template_version_id=template_version_id,
             status=BriefingStatus.IN_PROGRESS,
-            current_question_order=0,
+            current_question_order=1,
             answers={},
         )
         self.db.add(briefing)

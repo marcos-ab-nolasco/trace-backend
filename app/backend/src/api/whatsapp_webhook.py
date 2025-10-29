@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.db.session import get_db_session
+from src.services.briefing.extraction_service import ExtractionService
 from src.services.whatsapp.webhook_handler import WebhookHandler
+from src.services.whatsapp.whatsapp_service import WhatsAppService
 
 router = APIRouter(prefix="/api/webhooks/whatsapp", tags=["whatsapp-webhooks"])
 logger = logging.getLogger(__name__)
@@ -111,6 +113,10 @@ async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSessi
     """
     Handle incoming message from WhatsApp.
 
+    Detects two types of senders:
+    1. Authorized phone (architect) → Start new briefing
+    2. Client phone → Process answer to existing briefing
+
     Args:
         event: Parsed message event
         db_session: Database session for processing
@@ -136,7 +142,198 @@ async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSessi
         logger.warning("Text message without body")
         return
 
-    # Process the answer using AnswerProcessorService
+    # Check if sender is an authorized phone
+    from src.services.authorized_phone_service import AuthorizedPhoneService
+    from sqlalchemy import select
+    from src.db.models.authorized_phone import AuthorizedPhone
+
+    # Find if this phone is authorized in any organization
+    result = await db_session.execute(
+        select(AuthorizedPhone).where(
+            AuthorizedPhone.phone_number == from_number,
+            AuthorizedPhone.is_active == True,  # noqa: E712
+        )
+    )
+    authorized_phone = result.scalar_one_or_none()
+
+    if authorized_phone:
+        # This is an authorized phone → Start new briefing
+        logger.info(f"Message from authorized phone: {from_number}")
+        await _handle_authorized_phone_message(
+            from_number=from_number,
+            text_body=text_body,
+            authorized_phone=authorized_phone,
+            phone_number_id=phone_number_id,
+            db_session=db_session,
+        )
+    else:
+        # This might be a client phone → Process answer
+        logger.info(f"Message from potential client: {from_number}")
+        await _handle_client_answer(
+            from_number=from_number,
+            text_body=text_body,
+            wa_message_id=wa_message_id,
+            phone_number_id=phone_number_id,
+            db_session=db_session,
+        )
+
+
+async def _handle_authorized_phone_message(
+    from_number: str,
+    text_body: str,
+    authorized_phone: Any,
+    phone_number_id: str,
+    db_session: AsyncSession,
+) -> None:
+    """
+    Handle message from authorized phone (architect initiating briefing).
+
+    Args:
+        from_number: Sender's phone number
+        text_body: Message text
+        authorized_phone: AuthorizedPhone record
+        phone_number_id: WhatsApp Business phone number ID
+        db_session: Database session
+    """
+    from src.services.ai import get_ai_service
+    from src.services.briefing.briefing_start_service import BriefingStartService, ClientHasActiveBriefingError
+    from src.services.template_service import TemplateService
+    from src.services.briefing.orchestrator import BriefingOrchestrator
+    from src.db.models.organization import Organization
+    from sqlalchemy import select
+
+    try:
+        # Get organization
+        result = await db_session.execute(
+            select(Organization).where(Organization.id == authorized_phone.organization_id)
+        )
+        organization = result.scalar_one()
+
+        # Extract client info using AI
+        ai_service = get_ai_service("openai")
+        extraction_service = ExtractionService(ai_service)
+        extracted_info = await extraction_service.extract_client_info(
+            message=text_body,
+            architect_id=authorized_phone.added_by_architect_id,
+            model="gpt-4o-mini",
+        )
+
+        logger.info(
+            f"Extracted client info: confidence={extracted_info.confidence}, "
+            f"name={extracted_info.name}, phone={extracted_info.phone}"
+        )
+
+        # Validate extraction
+        if extracted_info.confidence < 0.5 or not extracted_info.name or not extracted_info.phone:
+            error_msg = (
+                "❌ Não consegui extrair os dados do cliente da sua mensagem.\n\n"
+                "Por favor, envie novamente incluindo:\n"
+                "- Nome completo do cliente\n"
+                "- Telefone do cliente\n"
+                "- Tipo de projeto (residencial, comercial, reforma, etc.)\n\n"
+                "Exemplo: 'Cliente João Silva, tel 11987654321, quer fazer reforma residencial'"
+            )
+
+            # Send error back to sender
+            settings = organization.settings or {}
+            phone_number_id_to_use = settings.get("phone_number_id") or phone_number_id
+            access_token = settings.get("access_token")
+
+            if phone_number_id_to_use and access_token:
+                wa_service = WhatsAppService(
+                    phone_number_id=phone_number_id_to_use,
+                    access_token=access_token,
+                )
+                await wa_service.send_text_message(to=from_number, text=error_msg)
+
+            logger.warning(f"Extraction failed for message from {from_number}")
+            return
+
+        # Normalize phone
+        from src.services.briefing.phone_utils import normalize_phone
+        client_phone = normalize_phone(extracted_info.phone)
+
+        # Select template
+        template_service = TemplateService(db_session)
+        template_version = await template_service.select_template_version_for_project(
+            architect_id=authorized_phone.added_by_architect_id,
+            project_type_slug=extracted_info.project_type or "residencial",
+        )
+
+        # Start briefing
+        briefing_service = BriefingStartService(db_session)
+        briefing = await briefing_service.start_briefing(
+            organization_id=organization.id,
+            architect_id=authorized_phone.added_by_architect_id,
+            client_name=extracted_info.name,
+            client_phone=client_phone,
+            template_version_id=template_version.id,
+        )
+
+        # Get first question
+        orchestrator = BriefingOrchestrator(db_session)
+        first_question_data = await orchestrator.next_question(briefing.id)
+        first_question = first_question_data["question"]
+
+        # Send first question to client
+        settings = organization.settings or {}
+        phone_number_id_to_use = settings.get("phone_number_id") or phone_number_id
+        access_token = settings.get("access_token")
+
+        if phone_number_id_to_use and access_token:
+            wa_service = WhatsAppService(
+                phone_number_id=phone_number_id_to_use,
+                access_token=access_token,
+            )
+            await wa_service.send_text_message(to=client_phone, text=first_question)
+
+        await db_session.commit()
+
+        logger.info(
+            f"Briefing started via WhatsApp: briefing_id={briefing.id}, "
+            f"client_phone={client_phone}, initiated_by={from_number}"
+        )
+
+    except ClientHasActiveBriefingError as e:
+        error_msg = f"⚠️ Este cliente já possui um briefing ativo.\n\n{str(e)}"
+
+        # Send error to sender
+        settings = organization.settings or {}
+        phone_number_id_to_use = settings.get("phone_number_id") or phone_number_id
+        access_token = settings.get("access_token")
+
+        if phone_number_id_to_use and access_token:
+            wa_service = WhatsAppService(
+                phone_number_id=phone_number_id_to_use,
+                access_token=access_token,
+            )
+            await wa_service.send_text_message(to=from_number, text=error_msg)
+
+        logger.warning(f"Cannot start briefing: {str(e)}")
+        await db_session.rollback()
+
+    except Exception as e:
+        logger.error(f"Error starting briefing from authorized phone: {str(e)}", exc_info=True)
+        await db_session.rollback()
+
+
+async def _handle_client_answer(
+    from_number: str,
+    text_body: str,
+    wa_message_id: str,
+    phone_number_id: str,
+    db_session: AsyncSession,
+) -> None:
+    """
+    Handle message from client (answer to briefing question).
+
+    Args:
+        from_number: Sender's phone number
+        text_body: Message text
+        wa_message_id: WhatsApp message ID
+        phone_number_id: WhatsApp Business phone number ID
+        db_session: Database session
+    """
     from src.services.briefing.answer_processor import AnswerProcessorService
 
     processor = AnswerProcessorService(db_session)

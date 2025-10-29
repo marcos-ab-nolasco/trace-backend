@@ -66,7 +66,7 @@ async def test_start_briefing_creates_briefing(
     assert briefing.id is not None
     assert briefing.status == BriefingStatus.IN_PROGRESS
     assert briefing.template_version_id == test_template_version.id
-    assert briefing.current_question_order == 0
+    assert briefing.current_question_order == 1
     assert briefing.answers == {}
 
 
