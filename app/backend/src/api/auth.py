@@ -25,6 +25,7 @@ from src.db.models.organization import Organization
 from src.db.session import get_db
 from src.schemas.architect import ArchitectCreate, ArchitectRead
 from src.schemas.auth import Token
+from src.services.authorized_phone_service import AuthorizedPhoneService
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -72,14 +73,25 @@ async def register(
         )
 
         db.add(new_architect)
+        await db.flush()  # Flush to get architect ID
+
+        # Add architect's phone as first authorized phone for the organization
+        phone_service = AuthorizedPhoneService(db)
+        await phone_service.add_phone(
+            organization_id=organization.id,
+            phone_number=architect_data.phone,
+            added_by_architect_id=new_architect.id,
+        )
+
         await db.commit()
         await db.refresh(new_architect)
 
         logger.info(
-            "Architect registered: architect_id=%s email=%s organization_id=%s",
+            "Architect registered: architect_id=%s email=%s organization_id=%s phone_authorized=%s",
             new_architect.id,
             new_architect.email,
             organization.id,
+            architect_data.phone,
         )
 
         return new_architect

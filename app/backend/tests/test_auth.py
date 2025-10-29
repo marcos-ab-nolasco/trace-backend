@@ -4,9 +4,11 @@ import asyncio
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.architect import Architect
+from src.db.models.authorized_phone import AuthorizedPhone
 
 
 @pytest.mark.asyncio
@@ -31,6 +33,43 @@ async def test_register_architect(client: AsyncClient, db_session: AsyncSession)
     assert data["phone"] == "+5511988888888"
     assert data["is_authorized"] is True  # defaults to authorized after signup
     assert "organization_id" in data
+
+
+@pytest.mark.asyncio
+async def test_register_architect_auto_adds_phone(
+    client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Architect registration should automatically add their phone as authorized."""
+
+    response = await client.post(
+        "/auth/register",
+        json={
+            "email": "architect@example.com",
+            "password": "securepass123",
+            "full_name": "Test Architect",
+            "phone": "+5511987654321",
+            "organization_name": "Test Org",
+        },
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    organization_id = data["organization_id"]
+    architect_id = data["id"]
+
+    # Verify authorized phone was created
+    result = await db_session.execute(
+        select(AuthorizedPhone).where(
+            AuthorizedPhone.organization_id == organization_id,
+            AuthorizedPhone.phone_number == "+5511987654321",
+        )
+    )
+    auth_phone = result.scalar_one_or_none()
+
+    assert auth_phone is not None
+    assert auth_phone.phone_number == "+5511987654321"
+    assert auth_phone.is_active is True
+    assert str(auth_phone.added_by_architect_id) == architect_id
 
 
 @pytest.mark.asyncio
