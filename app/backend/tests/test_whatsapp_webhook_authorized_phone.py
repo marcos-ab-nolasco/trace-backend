@@ -13,54 +13,6 @@ from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.project_type import ProjectType
 from src.db.models.briefing_template import BriefingTemplate
-from src.db.models.template_version import TemplateVersion
-
-
-@pytest.fixture
-async def test_project_type(db_session: AsyncSession) -> ProjectType:
-    """Create test project type."""
-    project_type = ProjectType(
-        slug="residencial",
-        label="Residencial",
-        description="Projetos residenciais",
-        is_active=True,
-    )
-    db_session.add(project_type)
-    await db_session.commit()
-    await db_session.refresh(project_type)
-    return project_type
-
-
-@pytest.fixture
-async def test_template(
-    db_session: AsyncSession, test_project_type: ProjectType
-) -> BriefingTemplate:
-    """Create test template."""
-    template = BriefingTemplate(
-        name="Template Residencial",
-        project_type_id=test_project_type.id,
-        is_global=True,
-        description="Template para projetos residenciais",
-    )
-    db_session.add(template)
-    await db_session.flush()
-
-    version = TemplateVersion(
-        template_id=template.id,
-        version_number=1,
-        questions=[
-            {"order": 1, "question": "Qual tipo de imóvel?", "type": "text", "required": True},
-            {"order": 2, "question": "Qual o prazo?", "type": "text", "required": True},
-        ],
-        is_active=True,
-    )
-    db_session.add(version)
-    await db_session.flush()
-
-    template.current_version_id = version.id
-    await db_session.commit()
-    await db_session.refresh(template)
-    return template
 
 
 @pytest.mark.asyncio
