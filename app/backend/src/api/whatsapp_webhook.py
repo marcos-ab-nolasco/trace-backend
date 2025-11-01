@@ -12,6 +12,7 @@ from src.db.session import get_db_session
 from src.services.briefing.extraction_service import ExtractionService
 from src.services.whatsapp.webhook_handler import WebhookHandler
 from src.services.whatsapp.whatsapp_service import WhatsAppService
+from src.services.whatsapp.whatsapp_account_service import WhatsAppAccountService
 
 router = APIRouter(prefix="/api/webhooks/whatsapp", tags=["whatsapp-webhooks"])
 logger = logging.getLogger(__name__)
@@ -235,14 +236,16 @@ async def _handle_authorized_phone_message(
             )
 
             # Send error back to sender
-            settings = organization.settings or {}
-            phone_number_id_to_use = settings.get("phone_number_id") or phone_number_id
-            access_token = settings.get("access_token")
+            account_service = WhatsAppAccountService(db_session)
+            config = await account_service.get_account_config(
+                organization_id=organization.id,
+                phone_number_id_override=phone_number_id,
+            )
 
-            if phone_number_id_to_use and access_token:
+            if config:
                 wa_service = WhatsAppService(
-                    phone_number_id=phone_number_id_to_use,
-                    access_token=access_token,
+                    phone_number_id=config.phone_number_id,
+                    access_token=config.access_token,
                 )
                 await wa_service.send_text_message(to=from_number, text=error_msg)
 
@@ -276,14 +279,16 @@ async def _handle_authorized_phone_message(
         first_question = first_question_data["question"]
 
         # Send first question to client
-        settings = organization.settings or {}
-        phone_number_id_to_use = settings.get("phone_number_id") or phone_number_id
-        access_token = settings.get("access_token")
+        account_service = WhatsAppAccountService(db_session)
+        config = await account_service.get_account_config(
+            organization_id=organization.id,
+            phone_number_id_override=phone_number_id,
+        )
 
-        if phone_number_id_to_use and access_token:
+        if config:
             wa_service = WhatsAppService(
-                phone_number_id=phone_number_id_to_use,
-                access_token=access_token,
+                phone_number_id=config.phone_number_id,
+                access_token=config.access_token,
             )
             await wa_service.send_text_message(to=client_phone, text=first_question)
 
@@ -298,14 +303,16 @@ async def _handle_authorized_phone_message(
         error_msg = f"⚠️ Este cliente já possui um briefing ativo.\n\n{str(e)}"
 
         # Send error to sender
-        settings = organization.settings or {}
-        phone_number_id_to_use = settings.get("phone_number_id") or phone_number_id
-        access_token = settings.get("access_token")
+        account_service = WhatsAppAccountService(db_session)
+        config = await account_service.get_account_config(
+            organization_id=organization.id,
+            phone_number_id_override=phone_number_id,
+        )
 
-        if phone_number_id_to_use and access_token:
+        if config:
             wa_service = WhatsAppService(
-                phone_number_id=phone_number_id_to_use,
-                access_token=access_token,
+                phone_number_id=config.phone_number_id,
+                access_token=config.access_token,
             )
             await wa_service.send_text_message(to=from_number, text=error_msg)
 

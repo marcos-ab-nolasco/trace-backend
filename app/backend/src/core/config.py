@@ -36,6 +36,8 @@ class Settings(BaseSettings):
 
     # WhatsApp Business Cloud API
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: SecretStr | None = None
+    WHATSAPP_PHONE_NUMBER_ID: str | None = None
+    WHATSAPP_ACCESS_TOKEN: SecretStr | None = None
 
     @property
     def cors_origins_list(self) -> list[str]:
