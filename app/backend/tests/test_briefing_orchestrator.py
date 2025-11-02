@@ -1,63 +1,18 @@
 """Tests for BriefingOrchestrator - conversational briefing state machine."""
 
+from uuid import uuid4
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models.architect import Architect
-from src.db.models.briefing import Briefing, BriefingStatus
+from src.db.models.briefing import BriefingStatus
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
-from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
-from src.db.models.architect import Architect
 from src.services.briefing.orchestrator import BriefingOrchestrator
 
 
-# Fixtures
-@pytest.fixture
-async def test_organization(db_session: AsyncSession) -> Organization:
-    """Create test organization."""
-    org = Organization(name="Test Org")
-    db_session.add(org)
-    await db_session.commit()
-    await db_session.refresh(org)
-    return org
-
-
-@pytest.fixture
-async def test_architect(db_session: AsyncSession, test_organization: Organization) -> Architect:
-    """Create test architect."""
-    architect = Architect(
-        organization_id=test_organization.id,
-        email="architect@test.com",
-        hashed_password="hash123",
-        phone="+5511999999999",
-        is_authorized=True,
-    )
-    db_session.add(architect)
-    await db_session.commit()
-    await db_session.refresh(architect)
-    return architect
-
-
-@pytest.fixture
-async def test_end_client(
-    db_session: AsyncSession, test_organization: Organization, test_architect: Architect
-) -> EndClient:
-    """Create test end client."""
-    client = EndClient(
-        organization_id=test_organization.id,
-        architect_id=test_architect.id,
-        name="João Silva",
-        phone="+5511987654321",
-        email="joao@example.com",
-    )
-    db_session.add(client)
-    await db_session.commit()
-    await db_session.refresh(client)
-    return client
-
-
+# Test-specific fixtures
 @pytest.fixture
 async def test_template_version(db_session: AsyncSession) -> TemplateVersion:
     """Create test template with version."""
@@ -136,8 +91,6 @@ async def test_start_briefing_invalid_client(
     orchestrator: BriefingOrchestrator, test_template_version: TemplateVersion
 ):
     """Test starting briefing with non-existent client."""
-    from uuid import uuid4
-
     with pytest.raises(ValueError, match="EndClient not found"):
         await orchestrator.start_briefing(
             end_client_id=uuid4(), template_version_id=test_template_version.id
@@ -205,9 +158,7 @@ async def test_next_question_completed_briefing(
         briefing_id=briefing.id, question_order=1, answer="Apartamento"
     )
     await orchestrator.process_answer(briefing_id=briefing.id, question_order=2, answer="80")
-    await orchestrator.process_answer(
-        briefing_id=briefing.id, question_order=3, answer="R$ 50.000"
-    )
+    await orchestrator.process_answer(briefing_id=briefing.id, question_order=3, answer="R$ 50.000")
 
     # Try to get next question
     question = await orchestrator.next_question(briefing_id=briefing.id)
@@ -274,9 +225,7 @@ async def test_process_answer_out_of_order(
 
     # Try to answer question 2 before question 1
     with pytest.raises(ValueError, match="Must answer current question"):
-        await orchestrator.process_answer(
-            briefing_id=briefing.id, question_order=2, answer="80"
-        )
+        await orchestrator.process_answer(briefing_id=briefing.id, question_order=2, answer="80")
 
 
 # Complete Briefing Tests

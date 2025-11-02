@@ -201,7 +201,9 @@ async def test_refresh_token_requires_cookie(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_with_invalid_session(client: AsyncClient, test_architect: Architect) -> None:
+async def test_refresh_token_with_invalid_session(
+    client: AsyncClient, test_architect: Architect
+) -> None:
     """Invalid session id should invalidate refresh attempt."""
 
     client.cookies.set("refresh_token", "invalid-session", domain="testserver", path="/")

@@ -16,7 +16,9 @@ from src.services.authorized_phone_service import (
 
 
 @pytest.mark.asyncio
-async def test_add_phone(db_session: AsyncSession, test_organization: Organization, test_architect: Architect):
+async def test_add_phone(
+    db_session: AsyncSession, test_organization: Organization, test_architect: Architect
+):
     """Test adding a new authorized phone."""
     service = AuthorizedPhoneService(db_session)
 
@@ -32,9 +34,7 @@ async def test_add_phone(db_session: AsyncSession, test_organization: Organizati
     assert phone.is_active is True
 
     # Verify it's in database
-    result = await db_session.execute(
-        select(AuthorizedPhone).where(AuthorizedPhone.id == phone.id)
-    )
+    result = await db_session.execute(select(AuthorizedPhone).where(AuthorizedPhone.id == phone.id))
     db_phone = result.scalar_one()
     assert db_phone.phone_number == "+5511987654321"
 
@@ -132,6 +132,7 @@ async def test_remove_phone_not_found_raises_error(
     service = AuthorizedPhoneService(db_session)
 
     from uuid import uuid4
+
     fake_id = uuid4()
 
     with pytest.raises(PhoneNotFoundError):
@@ -218,7 +219,9 @@ async def test_list_phones_only_active(
     assert phones[0].phone_number == "+5511111111111"
 
     # List all phones including inactive
-    all_phones = await service.list_phones(organization_id=test_organization.id, include_inactive=True)
+    all_phones = await service.list_phones(
+        organization_id=test_organization.id, include_inactive=True
+    )
     assert len(all_phones) == 2
 
 
@@ -313,6 +316,7 @@ async def test_get_phone_by_id_not_found_raises_error(
     service = AuthorizedPhoneService(db_session)
 
     from uuid import uuid4
+
     fake_id = uuid4()
 
     with pytest.raises(PhoneNotFoundError):

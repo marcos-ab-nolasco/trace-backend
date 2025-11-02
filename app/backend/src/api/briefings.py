@@ -14,7 +14,7 @@ from src.db.models.conversation import Conversation, ConversationType
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.session import get_db_session
-from src.schemas.briefing import StartBriefingRequest, StartBriefingResponse
+from src.schemas.briefing import ExtractedClientInfo, StartBriefingRequest, StartBriefingResponse
 from src.services.ai import get_ai_service
 from src.services.briefing.extraction_service import ExtractionService
 from src.services.briefing.orchestrator import BriefingOrchestrator
@@ -217,7 +217,7 @@ def _get_extraction_service() -> ExtractionService:
     return ExtractionService(ai_service)
 
 
-def _validate_extraction(extracted_info) -> None:
+def _validate_extraction(extracted_info: ExtractedClientInfo) -> None:
     """Validate that extraction has required fields and sufficient confidence."""
     # Check confidence threshold
     if extracted_info.confidence < MIN_EXTRACTION_CONFIDENCE:

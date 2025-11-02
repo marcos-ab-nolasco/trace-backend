@@ -1,49 +1,22 @@
 """Tests for AI-based extraction service for client info and template identification."""
 
-from uuid import uuid4
-
 import pytest
 from pytest_mock import MockerFixture
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.architect import Architect
 from src.db.models.briefing_template import BriefingTemplate
-from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
-from src.schemas.briefing import ExtractedClientInfo, TemplateRecommendation
+from src.schemas.briefing import ExtractedClientInfo
 from src.services.ai.openai_service import OpenAIService
 from src.services.briefing.extraction_service import ExtractionService
 
 
-# Fixtures
+# Test-specific fixtures
 @pytest.fixture
-async def test_organization(db_session: AsyncSession) -> Organization:
-    """Create test organization."""
-    org = Organization(name="Test Org")
-    db_session.add(org)
-    await db_session.commit()
-    await db_session.refresh(org)
-    return org
-
-
-@pytest.fixture
-async def test_architect(db_session: AsyncSession, test_organization: Organization) -> Architect:
-    """Create test architect."""
-    architect = Architect(
-        organization_id=test_organization.id,
-        email="architect@test.com",
-        hashed_password="hash123",
-        phone="+5511999999999",
-        is_authorized=True,
-    )
-    db_session.add(architect)
-    await db_session.commit()
-    await db_session.refresh(architect)
-    return architect
-
-
-@pytest.fixture
-async def test_templates(db_session: AsyncSession, test_architect: Architect) -> list[BriefingTemplate]:
+async def test_templates(
+    db_session: AsyncSession, test_architect: Architect
+) -> list[BriefingTemplate]:
     """Create test templates for different categories."""
     templates = []
     categories = ["reforma", "residencial", "comercial", "incorporacao"]
@@ -63,7 +36,12 @@ async def test_templates(db_session: AsyncSession, test_architect: Architect) ->
             template_id=template.id,
             version_number=1,
             questions=[
-                {"order": 1, "question": "Qual o tipo de projeto?", "type": "text", "required": True}
+                {
+                    "order": 1,
+                    "question": "Qual o tipo de projeto?",
+                    "type": "text",
+                    "required": True,
+                }
             ],
             is_active=True,
         )
@@ -125,7 +103,9 @@ async def test_extract_client_info_varied_format(
     extraction_service: ExtractionService, test_architect: Architect, mocker: MockerFixture
 ):
     """Test extracting from message with varied formatting."""
-    message = "Preciso de briefing para Maria Santos, cel 11 9 8765-4321, construção residencial nova"
+    message = (
+        "Preciso de briefing para Maria Santos, cel 11 9 8765-4321, construção residencial nova"
+    )
 
     mock_response = ExtractedClientInfo(
         name="Maria Santos",
@@ -239,5 +219,3 @@ async def test_extract_client_info_phone_formats(
         )
 
         assert result.phone == expected_phone
-
-

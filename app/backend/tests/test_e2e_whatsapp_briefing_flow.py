@@ -1,10 +1,11 @@
 """End-to-end tests for complete WhatsApp briefing flows."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import AsyncMock, patch
 
 from src.db.models.architect import Architect
 from src.db.models.authorized_phone import AuthorizedPhone
@@ -41,9 +42,10 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
     await db_session.commit()
 
     # Mock extraction and WhatsApp services
-    with patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction, patch(
-        "src.api.whatsapp_webhook.WhatsAppService"
-    ) as mock_whatsapp:
+    with (
+        patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction,
+        patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp,
+    ):
         # Configure extraction mock
         mock_extraction_instance = AsyncMock()
         mock_extraction_instance.extract_client_info.return_value = type(
@@ -260,9 +262,10 @@ async def test_e2e_extraction_failure_sends_error_to_architect(
     db_session.add(auth_phone)
     await db_session.commit()
 
-    with patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction, patch(
-        "src.api.whatsapp_webhook.WhatsAppService"
-    ) as mock_whatsapp:
+    with (
+        patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction,
+        patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp,
+    ):
         # Configure extraction mock to return low confidence
         mock_extraction_instance = AsyncMock()
         mock_extraction_instance.extract_client_info.return_value = type(
@@ -363,6 +366,7 @@ async def test_e2e_duplicate_briefing_blocked(
 
     # Get template version
     from src.db.models.template_version import TemplateVersion
+
     result = await db_session.execute(
         select(TemplateVersion).where(TemplateVersion.template_id == test_template.id)
     )
@@ -378,9 +382,10 @@ async def test_e2e_duplicate_briefing_blocked(
     db_session.add(existing_briefing)
     await db_session.commit()
 
-    with patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction, patch(
-        "src.api.whatsapp_webhook.WhatsAppService"
-    ) as mock_whatsapp:
+    with (
+        patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction,
+        patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp,
+    ):
         # Configure mocks
         mock_extraction_instance = AsyncMock()
         mock_extraction_instance.extract_client_info.return_value = type(

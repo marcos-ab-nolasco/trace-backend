@@ -303,7 +303,10 @@ async def test_list_messages(
 
 @pytest.mark.asyncio
 async def test_delete_conversation_cascades_to_messages(
-    client: AsyncClient, test_user: Architect, auth_headers: dict[str, str], db_session: AsyncSession
+    client: AsyncClient,
+    test_user: Architect,
+    auth_headers: dict[str, str],
+    db_session: AsyncSession,
 ) -> None:
     """Test that deleting a conversation also deletes its messages."""
     from sqlalchemy import func, select

@@ -1,8 +1,6 @@
 """Tests for processing client answers received via WhatsApp webhook."""
 
-from datetime import datetime
 from unittest.mock import AsyncMock
-from uuid import UUID
 
 import pytest
 from pytest_mock import MockerFixture
@@ -15,42 +13,25 @@ from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
-from src.db.models.architect import Architect
 from src.db.models.whatsapp_message import MessageDirection, MessageStatus, WhatsAppMessage
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 
 
-# Fixtures
+# Test-specific fixtures
 @pytest.fixture
-async def test_organization(db_session: AsyncSession) -> Organization:
-    """Create test organization with WhatsApp account."""
-    org = Organization(
-        name="Test Architecture Firm",
-        whatsapp_business_account_id="123456789",
-        settings={"phone_number_id": "test_phone_id", "access_token": "test_token"},
-    )
-    db_session.add(org)
-    await db_session.commit()
-    await db_session.refresh(org)
-    return org
-
-
-@pytest.fixture
-async def test_architect(
+async def test_org_with_whatsapp(
     db_session: AsyncSession, test_organization: Organization
-) -> Architect:
-    """Create test architect."""
-    architect = Architect(
-        organization_id=test_organization.id,
-        email="architect@test.com",
-        hashed_password="hashed_password",
-        phone="+5511999999999",
-        is_authorized=True,
-    )
-    db_session.add(architect)
+) -> Organization:
+    """Add WhatsApp settings to test organization."""
+    test_organization.whatsapp_business_account_id = "123456789"
+    test_organization.settings = {
+        "phone_number_id": "test_phone_id",
+        "access_token": "test_token",
+    }
+    db_session.add(test_organization)
     await db_session.commit()
-    await db_session.refresh(architect)
-    return architect
+    await db_session.refresh(test_organization)
+    return test_organization
 
 
 @pytest.fixture
@@ -102,11 +83,11 @@ async def test_template(db_session: AsyncSession) -> BriefingTemplate:
 
 @pytest.fixture
 async def test_client(
-    db_session: AsyncSession, test_organization: Organization, test_architect: Architect
+    db_session: AsyncSession, test_org_with_whatsapp: Organization, test_architect: Architect
 ) -> EndClient:
     """Create test end client."""
     client = EndClient(
-        organization_id=test_organization.id,
+        organization_id=test_org_with_whatsapp.id,
         architect_id=test_architect.id,
         name="João Silva",
         phone="+5511987654321",
@@ -255,7 +236,10 @@ async def test_receive_last_answer_and_complete_briefing(
     # Verify completion message was sent
     mock_whatsapp_send.assert_called_once()
     call_args = mock_whatsapp_send.call_args
-    assert "obrigad" in call_args.kwargs["text"].lower() or "conclu" in call_args.kwargs["text"].lower()
+    assert (
+        "obrigad" in call_args.kwargs["text"].lower()
+        or "conclu" in call_args.kwargs["text"].lower()
+    )
 
 
 @pytest.mark.asyncio
@@ -357,7 +341,10 @@ async def test_handle_client_without_active_briefing(
 
     # Should indicate no active briefing
     assert result["success"] is False
-    assert "no_active_briefing" in result.get("error", "").lower() or result.get("no_active_briefing") is True
+    assert (
+        "no_active_briefing" in result.get("error", "").lower()
+        or result.get("no_active_briefing") is True
+    )
 
 
 @pytest.mark.asyncio
@@ -378,7 +365,10 @@ async def test_handle_unknown_phone_number(
 
     # Should indicate client not found
     assert result["success"] is False
-    assert "client_not_found" in result.get("error", "").lower() or result.get("client_not_found") is True
+    assert (
+        "client_not_found" in result.get("error", "").lower()
+        or result.get("client_not_found") is True
+    )
 
 
 @pytest.mark.asyncio
@@ -390,7 +380,6 @@ async def test_webhook_integration_process_answer(
     mocker: MockerFixture,
 ):
     """Test webhook endpoint integration with answer processing."""
-    from src.api.whatsapp_webhook import _handle_incoming_message
 
     # Mock WhatsApp service
     mocker.patch(

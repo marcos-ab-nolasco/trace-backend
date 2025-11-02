@@ -1,7 +1,6 @@
 """Tests for WhatsApp message sending service."""
 
 import pytest
-from httpx import AsyncClient as HttpxAsyncClient
 from httpx import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -93,9 +92,7 @@ async def test_send_text_message_api_error(whatsapp_service: WhatsAppService, mo
     )
     mocker.patch("httpx.AsyncClient.post", return_value=mock_response)
 
-    result = await whatsapp_service.send_text_message(
-        to="invalid", text="Test"
-    )
+    result = await whatsapp_service.send_text_message(to="invalid", text="Test")
 
     assert result["success"] is False
     assert "error" in result
@@ -238,9 +235,7 @@ async def test_phone_number_formatting(whatsapp_service: WhatsAppService, mocker
     mock_post = mocker.patch("httpx.AsyncClient.post", return_value=mock_response)
 
     # Test with +, spaces, and dashes
-    await whatsapp_service.send_text_message(
-        to="+55 (11) 99999-9999", text="Test"
-    )
+    await whatsapp_service.send_text_message(to="+55 (11) 99999-9999", text="Test")
 
     call_json = mock_post.call_args.kwargs.get("json", {})
     # Should be cleaned to just digits
@@ -267,9 +262,7 @@ async def test_send_message_retries_on_network_error(whatsapp_service: WhatsAppS
         ],
     )
 
-    result = await whatsapp_service.send_text_message(
-        to="+5511999999999", text="Test retry"
-    )
+    result = await whatsapp_service.send_text_message(to="+5511999999999", text="Test retry")
 
     assert result["success"] is True
     assert result["message_id"] == "wamid.retry123"
@@ -285,9 +278,7 @@ async def test_send_message_fails_after_max_retries(whatsapp_service: WhatsAppSe
         side_effect=Exception("Network error"),
     )
 
-    result = await whatsapp_service.send_text_message(
-        to="+5511999999999", text="Test"
-    )
+    result = await whatsapp_service.send_text_message(to="+5511999999999", text="Test")
 
     assert result["success"] is False
     assert "error" in result

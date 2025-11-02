@@ -1,14 +1,15 @@
 """Tests for AuthorizedPhone model."""
 
-import pytest
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
+
+import pytest
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from src.db.models.architect import Architect
 from src.db.models.authorized_phone import AuthorizedPhone
 from src.db.models.organization import Organization
-from src.db.models.architect import Architect
 
 
 @pytest.mark.asyncio
@@ -173,9 +174,7 @@ async def test_authorized_phone_cascade_delete_organization(db_session):
     await db_session.commit()
 
     # Verify authorized phone is also deleted
-    result = await db_session.execute(
-        select(AuthorizedPhone).where(AuthorizedPhone.id == phone_id)
-    )
+    result = await db_session.execute(select(AuthorizedPhone).where(AuthorizedPhone.id == phone_id))
     assert result.scalar_one_or_none() is None
 
 

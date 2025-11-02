@@ -8,7 +8,6 @@ from src.db.models.architect import Architect
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
-from src.db.models.architect import Architect
 
 
 @pytest.fixture
@@ -197,7 +196,9 @@ async def test_create_template_unauthenticated(client: AsyncClient):
     payload = {
         "name": "New Template",
         "category": "residencial",
-        "initial_version": {"questions": [{"order": 1, "question": "Test?", "type": "text", "required": True}]},
+        "initial_version": {
+            "questions": [{"order": 1, "question": "Test?", "type": "text", "required": True}]
+        },
     }
     response = await client.post("/api/templates", json=payload)
     assert response.status_code == 403
@@ -256,7 +257,9 @@ async def test_create_template_invalid_category(
     payload = {
         "name": "Invalid Template",
         "category": "invalid_category",
-        "initial_version": {"questions": [{"order": 1, "question": "Test?", "type": "text", "required": True}]},
+        "initial_version": {
+            "questions": [{"order": 1, "question": "Test?", "type": "text", "required": True}]
+        },
     }
 
     response = await client.post("/api/templates", json=payload, headers=architect_auth_headers)
@@ -277,7 +280,9 @@ async def test_create_template_invalid_question_type(
         "name": "Invalid Questions",
         "category": "residencial",
         "initial_version": {
-            "questions": [{"order": 1, "question": "Test?", "type": "invalid_type", "required": True}]
+            "questions": [
+                {"order": 1, "question": "Test?", "type": "invalid_type", "required": True}
+            ]
         },
     }
 
@@ -344,7 +349,9 @@ async def test_update_template_creates_new_version(
     version1 = TemplateVersion(
         template_id=template.id,
         version_number=1,
-        questions=[{"order": 1, "question": "Original question?", "type": "text", "required": True}],
+        questions=[
+            {"order": 1, "question": "Original question?", "type": "text", "required": True}
+        ],
         is_active=True,
     )
     db_session.add(version1)
@@ -421,7 +428,9 @@ async def test_update_template_unauthorized(
     await db_session.commit()
 
     # Try to update with current user
-    update_payload = {"questions": [{"order": 1, "question": "Hacked?", "type": "text", "required": True}]}
+    update_payload = {
+        "questions": [{"order": 1, "question": "Hacked?", "type": "text", "required": True}]
+    }
 
     response = await client.put(
         f"/api/templates/{other_template.id}", json=update_payload, headers=architect_auth_headers
@@ -438,7 +447,9 @@ async def test_update_global_template_forbidden(
     architect_auth_headers: dict[str, str],
 ):
     """Test architects cannot update global templates."""
-    update_payload = {"questions": [{"order": 1, "question": "Try to update?", "type": "text", "required": True}]}
+    update_payload = {
+        "questions": [{"order": 1, "question": "Try to update?", "type": "text", "required": True}]
+    }
 
     response = await client.put(
         f"/api/templates/{global_template.id}", json=update_payload, headers=architect_auth_headers
@@ -474,7 +485,9 @@ async def test_get_template_versions(
         version = TemplateVersion(
             template_id=template.id,
             version_number=i,
-            questions=[{"order": 1, "question": f"Question v{i}?", "type": "text", "required": True}],
+            questions=[
+                {"order": 1, "question": f"Question v{i}?", "type": "text", "required": True}
+            ],
             is_active=(i == 3),
             change_description=f"Version {i}" if i > 1 else None,
         )

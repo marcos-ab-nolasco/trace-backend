@@ -1,12 +1,13 @@
 """Tests for Organization model."""
 
-import pytest
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
+
+import pytest
 from sqlalchemy import select
 
-from src.db.models.organization import Organization
 from src.db.models.architect import Architect
+from src.db.models.organization import Organization
 
 
 @pytest.mark.asyncio

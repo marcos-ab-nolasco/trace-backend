@@ -1,13 +1,13 @@
 """Tests for Conversation model extensions for briefing support."""
 
-import pytest
 from uuid import UUID
-from datetime import datetime
 
-from src.db.models.conversation import Conversation, ConversationType
+import pytest
+
 from src.db.models.architect import Architect
-from src.db.models.organization import Organization
+from src.db.models.conversation import Conversation, ConversationType
 from src.db.models.end_client import EndClient
+from src.db.models.organization import Organization
 
 
 @pytest.mark.asyncio
@@ -270,7 +270,9 @@ async def test_conversation_cascade_on_architect_delete(db_session):
     # Verify conversation is deleted (CASCADE)
     from sqlalchemy import select
 
-    result = await db_session.execute(select(Conversation).where(Conversation.id == conversation_id))
+    result = await db_session.execute(
+        select(Conversation).where(Conversation.id == conversation_id)
+    )
     assert result.scalar_one_or_none() is None
 
 

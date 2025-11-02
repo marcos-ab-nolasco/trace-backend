@@ -79,6 +79,7 @@ async def test_start_briefing_creates_or_updates_client(
 ):
     """Test that start_briefing creates client if not exists."""
     from sqlalchemy import select
+
     from src.db.models.end_client import EndClient
 
     service = BriefingStartService(db_session)

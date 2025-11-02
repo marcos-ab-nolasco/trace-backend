@@ -59,7 +59,9 @@ async def test_webhook_verification_success(client: AsyncClient, whatsapp_accoun
 
 
 @pytest.mark.asyncio
-async def test_webhook_verification_invalid_token(client: AsyncClient, whatsapp_account: WhatsAppAccount):
+async def test_webhook_verification_invalid_token(
+    client: AsyncClient, whatsapp_account: WhatsAppAccount
+):
     """Test webhook verification with incorrect token."""
     response = await client.get(
         "/api/webhooks/whatsapp",
@@ -82,7 +84,9 @@ async def test_webhook_verification_missing_params(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_webhook_verification_wrong_mode(client: AsyncClient, whatsapp_account: WhatsAppAccount):
+async def test_webhook_verification_wrong_mode(
+    client: AsyncClient, whatsapp_account: WhatsAppAccount
+):
     """Test webhook verification with wrong mode."""
     response = await client.get(
         "/api/webhooks/whatsapp",
@@ -148,7 +152,9 @@ async def test_webhook_receive_text_message(
                                 "display_phone_number": "+5511999999999",
                                 "phone_number_id": "test_phone_123",
                             },
-                            "contacts": [{"profile": {"name": "Test Architect"}, "wa_id": "5511999999999"}],
+                            "contacts": [
+                                {"profile": {"name": "Test Architect"}, "wa_id": "5511999999999"}
+                            ],
                             "messages": [
                                 {
                                     "from": "5511999999999",

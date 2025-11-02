@@ -1,14 +1,15 @@
 """Tests for BriefingTemplate and TemplateVersion models."""
 
-import pytest
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
 
-from src.db.models.briefing_template import BriefingTemplate
-from src.db.models.template_version import TemplateVersion
+import pytest
+
 from src.db.models.architect import Architect
+from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.organization import Organization
 from src.db.models.project_type import ProjectType
+from src.db.models.template_version import TemplateVersion
 
 
 @pytest.mark.asyncio

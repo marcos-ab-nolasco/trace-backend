@@ -3,11 +3,9 @@
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.config import get_settings
 from src.db.models.organization import Organization
 from src.services.whatsapp.whatsapp_account_service import (
     WhatsAppAccountService,
-    WhatsAppAccountConfig,
 )
 
 

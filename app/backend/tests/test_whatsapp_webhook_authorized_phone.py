@@ -1,18 +1,19 @@
 """Tests for WhatsApp webhook with authorized phone detection."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from unittest.mock import AsyncMock, patch
 
 from src.db.models.architect import Architect
 from src.db.models.authorized_phone import AuthorizedPhone
 from src.db.models.briefing import Briefing, BriefingStatus
+from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.project_type import ProjectType
-from src.db.models.briefing_template import BriefingTemplate
 
 
 @pytest.mark.asyncio
@@ -88,7 +89,7 @@ async def test_webhook_detects_authorized_phone_and_starts_briefing(
                                             },
                                         }
                                     ],
-                                }
+                                },
                             }
                         ]
                     }
@@ -164,7 +165,7 @@ async def test_webhook_from_client_phone_processes_answer(
                                         "text": {"body": "Casa"},
                                     }
                                 ],
-                            }
+                            },
                         }
                     ]
                 },
@@ -206,7 +207,7 @@ async def test_webhook_from_unknown_phone_does_nothing(
                                     "text": {"body": "Hello"},
                                 }
                             ],
-                        }
+                        },
                     }
                 ]
             }
@@ -292,7 +293,7 @@ async def test_webhook_extraction_failure_sends_error_to_sender(
                                             "text": {"body": "msg confusa sem dados"},
                                         }
                                     ],
-                                }
+                                },
                             }
                         ]
                     }

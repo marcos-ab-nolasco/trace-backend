@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import ValidationInfo
 
 
 # Question Schema (embedded in template version)
@@ -31,7 +32,7 @@ class QuestionSchema(BaseModel):
 
     @field_validator("options")
     @classmethod
-    def validate_options(cls, v: list[str] | None, info) -> list[str] | None:
+    def validate_options(cls, v: list[str] | None, info: ValidationInfo) -> list[str] | None:
         """Validate options are provided for multiple_choice questions."""
         question_type = info.data.get("type")
         if question_type == "multiple_choice" and (not v or len(v) < 2):

@@ -8,7 +8,6 @@ from httpx import AsyncClient
 from pytest_mock import MockerFixture
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing, BriefingStatus
@@ -20,39 +19,7 @@ from src.db.models.template_version import TemplateVersion
 from src.schemas.briefing import ExtractedClientInfo
 
 
-# Fixtures
-@pytest.fixture
-async def test_organization(db_session: AsyncSession) -> Organization:
-    """Create test organization with WhatsApp account."""
-    org = Organization(
-        name="Test Architecture Firm",
-        whatsapp_business_account_id="123456789",
-        settings={"phone_number_id": "test_phone_id", "access_token": "test_token"},
-    )
-    db_session.add(org)
-    await db_session.commit()
-    await db_session.refresh(org)
-    return org
-
-
-@pytest.fixture
-async def test_architect(
-    db_session: AsyncSession, test_organization: Organization
-) -> Architect:
-    """Create test architect."""
-    architect = Architect(
-        organization_id=test_organization.id,
-        email="architect@test.com",
-        hashed_password="hashed_password",
-        phone="+5511999999999",
-        is_authorized=True,
-    )
-    db_session.add(architect)
-    await db_session.commit()
-    await db_session.refresh(architect)
-    return architect
-
-
+# Test-specific fixtures
 @pytest.fixture
 async def test_templates(db_session: AsyncSession) -> dict[str, BriefingTemplate]:
     """Create test templates for different categories."""
@@ -196,9 +163,7 @@ async def test_start_briefing_with_complete_client_info(
     assert end_client.phone == "+5511999887766"
 
     # Verify Conversation was created (via Briefing.conversation_id)
-    result = await db_session.execute(
-        select(Briefing).where(Briefing.id == briefing_id)
-    )
+    result = await db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
     briefing_with_conv = result.scalar_one()
     assert briefing_with_conv.conversation_id is not None
 
@@ -269,9 +234,7 @@ async def test_start_briefing_with_existing_client_duplicate_phone(
 
     # Verify client was updated (not created duplicate)
     client_id = UUID(data["client_id"])
-    result = await db_session.execute(
-        select(EndClient).where(EndClient.id == client_id)
-    )
+    result = await db_session.execute(select(EndClient).where(EndClient.id == client_id))
     updated_client = result.scalar_one()
     assert updated_client.id == existing_client.id  # Same client
     assert updated_client.name == "João Silva Atualizado"  # Name updated
@@ -288,9 +251,7 @@ async def test_start_briefing_with_existing_client_duplicate_phone(
 
     # Verify new briefing was created for existing client
     briefing_id = UUID(data["briefing_id"])
-    result = await db_session.execute(
-        select(Briefing).where(Briefing.id == briefing_id)
-    )
+    result = await db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
     briefing = result.scalar_one()
     assert briefing.status == BriefingStatus.IN_PROGRESS
     assert briefing.end_client_id == existing_client.id
@@ -577,9 +538,7 @@ async def test_conversation_record_creation_with_whatsapp_context(
     client_id = UUID(data["client_id"])
 
     # Verify Conversation was created (via Briefing.conversation_id)
-    result = await db_session.execute(
-        select(Briefing).where(Briefing.id == briefing_id)
-    )
+    result = await db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
     briefing_with_conv = result.scalar_one()
     assert briefing_with_conv.conversation_id is not None
 

@@ -1,12 +1,13 @@
 """Tests for EndClient model."""
 
-import pytest
-from uuid import UUID
 from datetime import datetime
+from uuid import UUID
+
+import pytest
 from sqlalchemy import select
 
-from src.db.models.end_client import EndClient
 from src.db.models.architect import Architect
+from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 
 
@@ -72,7 +73,10 @@ async def test_end_client_relationship_with_architect(db_session):
     await db_session.refresh(architect)
 
     end_client = EndClient(
-        organization_id=org.id, architect_id=architect.id, name="João Santos", phone="+5511333333333"
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="João Santos",
+        phone="+5511333333333",
     )
     db_session.add(end_client)
     await db_session.commit()
@@ -243,7 +247,10 @@ async def test_end_client_optional_fields(db_session):
 
     # Create end client with only required fields
     end_client = EndClient(
-        organization_id=org.id, architect_id=architect.id, name="Minimal Client", phone="+5511999999999"
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Minimal Client",
+        phone="+5511999999999",
     )
     db_session.add(end_client)
     await db_session.commit()

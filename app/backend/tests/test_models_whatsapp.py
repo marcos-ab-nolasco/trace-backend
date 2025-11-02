@@ -2,7 +2,6 @@
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -77,7 +76,11 @@ async def test_whatsapp_account_n_to_n_with_organizations(db_session: AsyncSessi
     result = await db_session.execute(
         select(WhatsAppAccount)
         .where(WhatsAppAccount.id == account.id)
-        .options(selectinload(WhatsAppAccount.organization_links).selectinload(OrganizationWhatsAppAccount.organization))
+        .options(
+            selectinload(WhatsAppAccount.organization_links).selectinload(
+                OrganizationWhatsAppAccount.organization
+            )
+        )
     )
     account = result.scalar_one()
 
@@ -235,7 +238,9 @@ async def test_organization_deletion_removes_links_not_account(db_session: Async
     assert result.scalar_one_or_none() is None
 
     # Verify account still exists
-    result = await db_session.execute(select(WhatsAppAccount).where(WhatsAppAccount.id == account_id))
+    result = await db_session.execute(
+        select(WhatsAppAccount).where(WhatsAppAccount.id == account_id)
+    )
     preserved_account = result.scalar_one_or_none()
     assert preserved_account is not None
     assert preserved_account.phone_number_id == "phone123"
@@ -262,7 +267,10 @@ async def test_create_whatsapp_session(db_session: AsyncSession):
     await db_session.refresh(architect)
 
     client = EndClient(
-        organization_id=org.id, architect_id=architect.id, name="Client Name", phone="+5511999999999"
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Client Name",
+        phone="+5511999999999",
     )
     db_session.add(client)
     await db_session.commit()
@@ -325,7 +333,9 @@ async def test_whatsapp_session_cascade_on_client_delete(db_session: AsyncSessio
     await db_session.commit()
 
     # Verify session is also deleted (CASCADE)
-    result = await db_session.execute(select(WhatsAppSession).where(WhatsAppSession.id == session_id))
+    result = await db_session.execute(
+        select(WhatsAppSession).where(WhatsAppSession.id == session_id)
+    )
     assert result.scalar_one_or_none() is None
 
 
@@ -435,7 +445,9 @@ async def test_whatsapp_message_cascade_on_session_delete(db_session: AsyncSessi
     await db_session.commit()
 
     # Verify message is also deleted (CASCADE)
-    result = await db_session.execute(select(WhatsAppMessage).where(WhatsAppMessage.id == message_id))
+    result = await db_session.execute(
+        select(WhatsAppMessage).where(WhatsAppMessage.id == message_id)
+    )
     assert result.scalar_one_or_none() is None
 
 

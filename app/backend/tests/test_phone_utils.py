@@ -1,7 +1,5 @@
 """Tests for phone number validation and normalization utilities."""
 
-import pytest
-
 from src.services.briefing.phone_utils import (
     format_phone_display,
     normalize_phone,

@@ -103,7 +103,7 @@ class BriefingOrchestrator:
         questions = template_version.questions
         for question in questions:
             if question["order"] == briefing.current_question_order:
-                return question
+                return dict(question)
 
         # No more questions
         return None

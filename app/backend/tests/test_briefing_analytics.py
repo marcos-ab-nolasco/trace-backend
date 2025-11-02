@@ -1,7 +1,6 @@
 """Tests for briefing analytics functionality."""
 
-from datetime import datetime, timedelta
-from uuid import UUID
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -14,41 +13,9 @@ from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
-from src.db.models.architect import Architect
 
 
-# Fixtures
-@pytest.fixture
-async def test_organization(db_session: AsyncSession) -> Organization:
-    """Create test organization."""
-    org = Organization(
-        name="Test Architecture Firm",
-        whatsapp_business_account_id="123456789",
-    )
-    db_session.add(org)
-    await db_session.commit()
-    await db_session.refresh(org)
-    return org
-
-
-@pytest.fixture
-async def test_architect(
-    db_session: AsyncSession, test_organization: Organization
-) -> Architect:
-    """Create test architect."""
-    architect = Architect(
-        organization_id=test_organization.id,
-        email="architect@test.com",
-        hashed_password="hashed_password",
-        phone="+5511999999999",
-        is_authorized=True,
-    )
-    db_session.add(architect)
-    await db_session.commit()
-    await db_session.refresh(architect)
-    return architect
-
-
+# Test-specific fixtures
 @pytest.fixture
 async def test_template(db_session: AsyncSession) -> BriefingTemplate:
     """Create test template."""
@@ -102,9 +69,9 @@ async def completed_briefing(
     db_session: AsyncSession, test_client: EndClient, test_template: BriefingTemplate
 ) -> Briefing:
     """Create a completed briefing."""
-    from datetime import timezone
-    created_time = datetime.now(timezone.utc) - timedelta(hours=2)
-    completed_time = datetime.now(timezone.utc)
+
+    created_time = datetime.now(UTC) - timedelta(hours=2)
+    completed_time = datetime.now(UTC)
 
     briefing = Briefing(
         end_client_id=test_client.id,
@@ -207,10 +174,10 @@ async def test_analytics_duration_calculation(
     test_template: BriefingTemplate,
 ):
     """Test accurate duration calculation."""
-    from datetime import timezone
+
     # Create briefing with specific times (timezone-aware)
-    start_time = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
-    end_time = datetime(2025, 1, 1, 11, 30, 0, tzinfo=timezone.utc)  # 1.5 hours = 5400 seconds
+    start_time = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
+    end_time = datetime(2025, 1, 1, 11, 30, 0, tzinfo=UTC)  # 1.5 hours = 5400 seconds
 
     briefing = Briefing(
         end_client_id=test_client.id,
@@ -239,7 +206,7 @@ async def test_analytics_completion_rate(
     test_template: BriefingTemplate,
 ):
     """Test completion rate calculation with different answer counts."""
-    from datetime import timezone
+
     # Briefing with all questions answered
     briefing_full = Briefing(
         end_client_id=test_client.id,
@@ -247,7 +214,7 @@ async def test_analytics_completion_rate(
         status=BriefingStatus.COMPLETED,
         current_question_order=4,
         answers={"1": "A", "2": "B", "3": "C"},
-        completed_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(UTC),
     )
     db_session.add(briefing_full)
     await db_session.flush()
