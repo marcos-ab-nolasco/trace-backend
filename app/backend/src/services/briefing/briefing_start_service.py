@@ -4,6 +4,7 @@ import logging
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.briefing import Briefing, BriefingStatus
@@ -72,7 +73,22 @@ class BriefingStartService:
             answers={},
         )
         self.db.add(briefing)
-        await self.db.flush()
+
+        try:
+            await self.db.flush()
+        except IntegrityError as e:
+            # Constraint violation - client already has active briefing
+            # This handles race conditions where both requests pass validation
+            # but database constraint prevents duplicate
+            logger.warning(
+                "IntegrityError creating briefing for client %s: %s",
+                end_client.id,
+                str(e),
+            )
+            raise ClientHasActiveBriefingError(
+                f"Client already has an active briefing. "
+                "Please complete or cancel the existing briefing before starting a new one."
+            ) from e
 
         logger.info(
             "Briefing started: briefing_id=%s client_id=%s template_version_id=%s",

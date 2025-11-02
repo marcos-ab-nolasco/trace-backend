@@ -378,11 +378,11 @@ async def test_template_identification_by_project_type(
     """Test that different project types map to correct templates."""
     project_types = ["reforma", "residencial", "comercial", "construcao"]
 
-    for project_type in project_types:
-        # Mock extraction
+    for idx, project_type in enumerate(project_types, start=1):
+        # Mock extraction with unique phone numbers
         mock_extracted_info = ExtractedClientInfo(
             name=f"Cliente {project_type}",
-            phone=f"1199{project_type[:4].zfill(6)}",
+            phone=f"+5511999{idx:06d}",  # Unique numeric phones: +5511999000001, +5511999000002, etc
             project_type=project_type,
             confidence=0.95,
             raw_text=f"Cliente para {project_type}",

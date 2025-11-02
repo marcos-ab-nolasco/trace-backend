@@ -88,6 +88,24 @@
     test-down: ## Remove test database
 	docker compose -f infrastructure/docker-compose.yml down postgres_test
 
+    test-migrate: ## Apply migrations to test database
+	@echo "Applying migrations to test database..."
+	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5433/fullstack_test" .venv/bin/alembic upgrade head
+	@echo "Test database migrations applied!"
+
+    test-migrate-reset: ## Reset test database migrations (downgrade to base then upgrade)
+	@echo "Resetting test database migrations..."
+	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5433/fullstack_test" .venv/bin/alembic downgrade base
+	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5433/fullstack_test" .venv/bin/alembic upgrade head
+	@echo "Test database migrations reset complete!"
+
+    test-reset: ## Completely reset test database (down + up + migrate)
+	@echo "Resetting test database completely..."
+	make test-down
+	make test-up
+	make test-migrate
+	@echo "Test database reset complete!"
+
     test-backend: ## Run backend tests (requires test database running)
 	cd app/backend && pytest -v
 
