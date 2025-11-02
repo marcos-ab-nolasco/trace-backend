@@ -19,12 +19,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         duration_ms = int((time() - start_time) * 1000)
 
-        # Try to extract user_id from request state (set by get_current_user dependency)
-        user_id = getattr(request.state, "user_id", None) or "anonymous"
+        # Try to extract architect_id from request state (set by auth dependency)
+        architect_id = getattr(request.state, "architect_id", None) or "anonymous"
 
         logger.info(
             f"HTTP {request.method} {request.url.path} {response.status_code} "
-            f"{duration_ms}ms user_id={user_id}"
+            f"{duration_ms}ms architect_id={architect_id}"
         )
 
         return response

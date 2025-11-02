@@ -16,7 +16,7 @@ settings = get_settings()
 
 
 class RefreshSession(TypedDict):
-    user_id: str
+    architect_id: str
     issued_at: float
 
 
@@ -38,11 +38,11 @@ def _ttl_seconds() -> int:
     return int(settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60)
 
 
-async def create_session(user_id: str) -> str:
+async def create_session(architect_id: str) -> str:
     token = secrets.token_urlsafe(32)
     hashed = _hash_token(token)
     key = _session_key(hashed)
-    payload: RefreshSession = {"user_id": user_id, "issued_at": time.time()}
+    payload: RefreshSession = {"architect_id": architect_id, "issued_at": time.time()}
     client = get_redis_client()
     await client.set(key, json.dumps(payload), ex=_ttl_seconds())
     return token
@@ -59,10 +59,10 @@ async def get_session(token: str) -> RefreshSession | None:
         data = json.loads(raw)
         if not isinstance(data, dict):
             return None
-        if "user_id" not in data:
+        if "architect_id" not in data:
             return None
         return RefreshSession(
-            user_id=str(data["user_id"]), issued_at=float(data.get("issued_at", 0))
+            architect_id=str(data["architect_id"]), issued_at=float(data.get("issued_at", 0))
         )
     except Exception:
         return None
@@ -78,10 +78,10 @@ async def delete_session(token: str) -> None:
         pass
 
 
-async def replace_session(old_token: str | None, user_id: str) -> str:
+async def replace_session(old_token: str | None, architect_id: str) -> str:
     if old_token:
         await delete_session(old_token)
-    return await create_session(user_id)
+    return await create_session(architect_id)
 
 
 def set_refresh_cookie(response: Response, token: str) -> None:

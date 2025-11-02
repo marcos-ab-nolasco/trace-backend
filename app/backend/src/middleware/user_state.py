@@ -1,6 +1,6 @@
-"""Middleware to populate request.state.user_id for rate limiting.
+"""Middleware to populate request.state.architect_id for rate limiting.
 
-This middleware extracts user_id from JWT token and stores it in request.state
+This middleware extracts architect_id from JWT token and stores it in request.state
 BEFORE rate limiting is applied, allowing per-user rate limits on authenticated endpoints.
 """
 
@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 class UserStateMiddleware(BaseHTTPMiddleware):
-    """Middleware to extract user_id from JWT and populate request.state."""
+    """Middleware to extract architect_id from JWT and populate request.state."""
 
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        """Extract user_id from Authorization header and store in request.state."""
+        """Extract architect_id from Authorization header and store in request.state."""
         # Extract token from Authorization header
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -30,12 +30,12 @@ class UserStateMiddleware(BaseHTTPMiddleware):
             try:
                 payload = decode_token(token)
                 if payload.get("type") == "access":
-                    user_id = payload.get("sub")
-                    if user_id:
-                        request.state.user_id = user_id
+                    architect_id = payload.get("sub")
+                    if architect_id:
+                        request.state.architect_id = architect_id
             except (ValueError, TypeError):
                 # Invalid token - ignore and continue
-                # The actual authentication will be handled by get_current_user dependency
+                # The actual authentication will be handled by get_current_architect dependency
                 pass
 
         response = await call_next(request)

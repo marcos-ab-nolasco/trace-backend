@@ -68,6 +68,8 @@ dump.rdb
 dmypy.json
 .ruff_cache/
 
-# Prompts
+# Prompts & Planning
 CLAUDE.md
-historic_chat/
+AGENTS.md
+docs/
+planning/

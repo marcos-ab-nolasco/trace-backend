@@ -30,7 +30,7 @@ class ConversationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    user_id: UUID
+    architect_id: UUID | None
     title: str
     ai_provider: str
     ai_model: str

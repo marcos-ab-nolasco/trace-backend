@@ -1,3 +1,4 @@
+from src.schemas.architect import ArchitectCreate, ArchitectRead
 from src.schemas.auth import Token
 from src.schemas.chat import (
     AIProvider,
@@ -11,12 +12,11 @@ from src.schemas.chat import (
     MessageList,
     MessageRead,
 )
-from src.schemas.user import UserCreate, UserRead
 
 __all__ = [
     "Token",
-    "UserCreate",
-    "UserRead",
+    "ArchitectCreate",
+    "ArchitectRead",
     "ConversationCreate",
     "ConversationRead",
     "ConversationUpdate",

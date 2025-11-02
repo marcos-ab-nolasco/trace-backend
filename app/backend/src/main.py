@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from src.api import auth, chat
+from src.api import auth, briefings, chat, organizations, templates, whatsapp_webhook
 from src.core.config import get_settings
 from src.core.lifespan import lifespan
 from src.core.logging_config.middleware import LoggingMiddleware
@@ -29,7 +29,7 @@ app = FastAPI(
 # Configure rate limiting
 app.state.limiter = limiter
 app.state.limiter_authenticated = limiter_authenticated
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # Configure CORS
@@ -41,14 +41,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add middleware to populate user_id in request.state (must be before rate limiting)
+# Add middleware to populate architect_id in request.state (must be before rate limiting)
 app.add_middleware(UserStateMiddleware)
 
 app.add_middleware(LoggingMiddleware)
 
 # Include routers
 app.include_router(auth.router)
+app.include_router(briefings.router)
 app.include_router(chat.router)
+app.include_router(organizations.router)
+app.include_router(templates.router)
+app.include_router(whatsapp_webhook.router)
 
 
 @app.get("/health_check")

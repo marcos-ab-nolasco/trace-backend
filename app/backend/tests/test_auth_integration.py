@@ -7,13 +7,13 @@ reducing database load while maintaining security and data integrity.
 import pytest
 from httpx import AsyncClient
 
-from src.db.models import User
+from src.db.models.architect import Architect
 
 
 @pytest.mark.asyncio
 async def test_multiple_requests_from_same_user_use_cache(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """Multiple authenticated requests from the same user should benefit from cache.
@@ -43,7 +43,7 @@ async def test_multiple_requests_from_same_user_use_cache(
 @pytest.mark.asyncio
 async def test_different_users_have_isolated_cache(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
     db_session,
 ) -> None:
@@ -53,11 +53,14 @@ async def test_different_users_have_isolated_cache(
     """
     from src.core.security import create_access_token, hash_password
 
-    # Create a second user
-    second_user = User(
+    # Create a second user (same organization as test_user)
+    second_user = Architect(
+        organization_id=test_user.organization_id,
         email="second@example.com",
         hashed_password=hash_password("password123"),
         full_name="Second User",
+        phone="+5511888888888",
+        is_authorized=True,
     )
     db_session.add(second_user)
     await db_session.commit()
@@ -93,7 +96,7 @@ async def test_different_users_have_isolated_cache(
 @pytest.mark.asyncio
 async def test_token_refresh_does_not_break_cache(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """When a user refreshes their token, cache should still work.
@@ -123,7 +126,7 @@ async def test_token_refresh_does_not_break_cache(
 @pytest.mark.asyncio
 async def test_rapid_concurrent_requests_return_consistent_user(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
 ) -> None:
     """Multiple rapid requests should return consistent user data.
@@ -173,7 +176,7 @@ async def test_invalid_token_does_not_pollute_cache(
 @pytest.mark.asyncio
 async def test_deleted_user_eventually_fails_authentication(
     client: AsyncClient,
-    test_user: User,
+    test_user: Architect,
     auth_headers: dict[str, str],
     db_session,
 ) -> None:
