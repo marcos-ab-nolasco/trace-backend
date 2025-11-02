@@ -1,7 +1,6 @@
 """Service for calculating and managing briefing analytics."""
 
 import logging
-from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -39,9 +38,7 @@ class AnalyticsService:
             ValueError: If briefing not found
         """
         # Get briefing
-        result = await self.db_session.execute(
-            select(Briefing).where(Briefing.id == briefing_id)
-        )
+        result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
@@ -120,9 +117,7 @@ class AnalyticsService:
             ValueError: If briefing not found or not completed
         """
         # Get briefing
-        result = await self.db_session.execute(
-            select(Briefing).where(Briefing.id == briefing_id)
-        )
+        result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
@@ -187,9 +182,7 @@ class AnalyticsService:
             Extracted insights as text, or None if none found
         """
         # Get briefing
-        result = await self.db_session.execute(
-            select(Briefing).where(Briefing.id == briefing_id)
-        )
+        result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             return None

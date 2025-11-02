@@ -51,9 +51,7 @@ class WhatsAppService:
         """
         return re.sub(r"[^\d]", "", phone)
 
-    async def _send_request(
-        self, payload: dict[str, Any], retries: int = 0
-    ) -> dict[str, Any]:
+    async def _send_request(self, payload: dict[str, Any], retries: int = 0) -> dict[str, Any]:
         """
         Send request to WhatsApp API with retry logic.
 
@@ -85,12 +83,8 @@ class WhatsAppService:
                     }
                 else:
                     error_data = response.json()
-                    error_message = error_data.get("error", {}).get(
-                        "message", "Unknown error"
-                    )
-                    logger.error(
-                        f"WhatsApp API error: {response.status_code} - {error_message}"
-                    )
+                    error_message = error_data.get("error", {}).get("message", "Unknown error")
+                    logger.error(f"WhatsApp API error: {response.status_code} - {error_message}")
 
                     return {
                         "success": False,

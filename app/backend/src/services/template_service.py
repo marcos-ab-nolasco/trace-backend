@@ -199,9 +199,7 @@ class TemplateService:
 
             if template.current_version_id:
                 current_version_result = await self.db_session.execute(
-                    select(TemplateVersion).where(
-                        TemplateVersion.id == template.current_version_id
-                    )
+                    select(TemplateVersion).where(TemplateVersion.id == template.current_version_id)
                 )
                 current_version = current_version_result.scalar_one_or_none()
                 if current_version:

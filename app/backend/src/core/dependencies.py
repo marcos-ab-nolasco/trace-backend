@@ -91,7 +91,7 @@ async def get_current_architect(
 
 
 async def get_current_architect_id(
-    current_architect: Annotated[Architect, Depends(get_current_architect)]
+    current_architect: Annotated[Architect, Depends(get_current_architect)],
 ) -> UUID:
     """Dependency to get the current architect's ID.
 

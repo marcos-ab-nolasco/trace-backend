@@ -19,9 +19,7 @@ class AuthorizedPhone(Base):
 
     __tablename__ = "authorized_phones"
     __table_args__ = (
-        UniqueConstraint(
-            "organization_id", "phone_number", name="uq_organization_phone_number"
-        ),
+        UniqueConstraint("organization_id", "phone_number", name="uq_organization_phone_number"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -43,7 +41,9 @@ class AuthorizedPhone(Base):
     organization: Mapped["Organization"] = relationship(
         "Organization", back_populates="authorized_phones"
     )
-    added_by: Mapped["Architect | None"] = relationship("Architect", foreign_keys=[added_by_architect_id])
+    added_by: Mapped["Architect | None"] = relationship(
+        "Architect", foreign_keys=[added_by_architect_id]
+    )
 
     def __repr__(self) -> str:
         return f"<AuthorizedPhone(id={self.id}, phone={self.phone_number}, org={self.organization_id})>"

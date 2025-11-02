@@ -56,7 +56,9 @@ class WebhookHandler:
         return events
 
     @staticmethod
-    def _parse_message(message: dict[str, Any], phone_number_id: str | None) -> dict[str, Any] | None:
+    def _parse_message(
+        message: dict[str, Any], phone_number_id: str | None
+    ) -> dict[str, Any] | None:
         """
         Parse an incoming message.
 

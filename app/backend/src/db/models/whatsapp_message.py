@@ -5,7 +5,8 @@ from enum import Enum
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as Uuid
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.session import Base
@@ -39,9 +40,7 @@ class WhatsAppMessage(Base):
     )
 
     # WhatsApp message identifier (from API)
-    wa_message_id: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False, index=True
-    )
+    wa_message_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
 
     # Message metadata
     direction: Mapped[str] = mapped_column(String(50), nullable=False)

@@ -6,13 +6,15 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, String, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as Uuid
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.briefing import Briefing
+
 
 class SessionStatus(str, Enum):
     """Enum for WhatsApp session status."""
@@ -39,7 +41,9 @@ class WhatsAppSession(Base):
     phone_number: Mapped[str] = mapped_column(String(20), nullable=False)
 
     # Session status
-    status: Mapped[str] = mapped_column(String(50), nullable=False, default=SessionStatus.ACTIVE.value)
+    status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default=SessionStatus.ACTIVE.value
+    )
 
     # Optional metadata and context
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -54,7 +58,9 @@ class WhatsAppSession(Base):
 
     # Relationships
     end_client: Mapped["EndClient"] = relationship("EndClient", back_populates="whatsapp_sessions")  # type: ignore
-    briefing: Mapped["Briefing | None"] = relationship("Briefing", back_populates="whatsapp_sessions")
+    briefing: Mapped["Briefing | None"] = relationship(
+        "Briefing", back_populates="whatsapp_sessions"
+    )
     messages: Mapped[list["WhatsAppMessage"]] = relationship(  # type: ignore
         "WhatsAppMessage", back_populates="session", cascade="all, delete-orphan"
     )

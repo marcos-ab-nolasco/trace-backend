@@ -26,9 +26,7 @@ class BriefingOrchestrator:
         """
         self.db_session = db_session
 
-    async def start_briefing(
-        self, end_client_id: UUID, template_version_id: UUID
-    ) -> Briefing:
+    async def start_briefing(self, end_client_id: UUID, template_version_id: UUID) -> Briefing:
         """Start a new briefing session.
 
         Args:
@@ -88,9 +86,7 @@ class BriefingOrchestrator:
             ValueError: If briefing not found
         """
         # Get briefing with template version
-        result = await self.db_session.execute(
-            select(Briefing).where(Briefing.id == briefing_id)
-        )
+        result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
@@ -112,9 +108,7 @@ class BriefingOrchestrator:
         # No more questions
         return None
 
-    async def process_answer(
-        self, briefing_id: UUID, question_order: int, answer: str
-    ) -> Briefing:
+    async def process_answer(self, briefing_id: UUID, question_order: int, answer: str) -> Briefing:
         """Process an answer to a question.
 
         Args:
@@ -129,9 +123,7 @@ class BriefingOrchestrator:
             ValueError: If briefing not found or answer is out of order
         """
         # Get briefing
-        result = await self.db_session.execute(
-            select(Briefing).where(Briefing.id == briefing_id)
-        )
+        result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
@@ -158,9 +150,7 @@ class BriefingOrchestrator:
         await self.db_session.commit()
         await self.db_session.refresh(briefing)
 
-        logger.info(
-            f"Processed answer for briefing {briefing_id}, question {question_order}"
-        )
+        logger.info(f"Processed answer for briefing {briefing_id}, question {question_order}")
         return briefing
 
     async def complete_briefing(self, briefing_id: UUID) -> Briefing:
@@ -176,9 +166,7 @@ class BriefingOrchestrator:
             ValueError: If briefing not found or required questions not answered
         """
         # Get briefing with template version
-        result = await self.db_session.execute(
-            select(Briefing).where(Briefing.id == briefing_id)
-        )
+        result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
@@ -238,9 +226,7 @@ class BriefingOrchestrator:
         Raises:
             ValueError: If briefing not found
         """
-        result = await self.db_session.execute(
-            select(Briefing).where(Briefing.id == briefing_id)
-        )
+        result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
@@ -266,9 +252,7 @@ class BriefingOrchestrator:
             ValueError: If briefing not found
         """
         # Get briefing with template version
-        result = await self.db_session.execute(
-            select(Briefing).where(Briefing.id == briefing_id)
-        )
+        result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
@@ -284,7 +268,9 @@ class BriefingOrchestrator:
         total_questions = len(template_version.questions)
         answered_questions = len(briefing.answers or {})
         remaining_questions = total_questions - answered_questions
-        progress_percentage = (answered_questions / total_questions * 100) if total_questions > 0 else 0
+        progress_percentage = (
+            (answered_questions / total_questions * 100) if total_questions > 0 else 0
+        )
 
         return {
             "total_questions": total_questions,

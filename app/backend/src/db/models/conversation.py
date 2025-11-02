@@ -10,8 +10,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.db.session import Base
 
 if TYPE_CHECKING:
-    from src.db.models.briefing import Briefing
     from src.db.models.architect import Architect
+    from src.db.models.briefing import Briefing
     from src.db.models.end_client import EndClient
     from src.db.models.message import Message
 
@@ -66,7 +66,9 @@ class Conversation(Base):
     messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="conversation", cascade="all, delete-orphan"
     )
-    end_client: Mapped["EndClient | None"] = relationship("EndClient", back_populates="conversations")
+    end_client: Mapped["EndClient | None"] = relationship(
+        "EndClient", back_populates="conversations"
+    )
     briefing: Mapped["Briefing | None"] = relationship(
         "Briefing", back_populates="conversation", uselist=False
     )

@@ -48,9 +48,7 @@ async def register(
     existing_architect = result.scalar_one_or_none()
 
     if existing_architect:
-        logger.warning(
-            "Registration failed: email=%s reason=already_exists", architect_data.email
-        )
+        logger.warning("Registration failed: email=%s reason=already_exists", architect_data.email)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
@@ -180,7 +178,9 @@ async def refresh(
     architect = result.scalar_one_or_none()
 
     if architect is None:
-        logger.warning("Token refresh failed: reason=architect_not_found architect_id=%s", architect_id)
+        logger.warning(
+            "Token refresh failed: reason=architect_not_found architect_id=%s", architect_id
+        )
         await delete_session(refresh_cookie)
         clear_refresh_cookie(response)
         raise credentials_exception

@@ -79,7 +79,7 @@ async def add_authorized_phone(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e
 
 
 @router.delete("/authorized-phones/{phone_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -104,13 +104,13 @@ async def delete_authorized_phone(
             architect.id,
         )
 
-    except PhoneNotFoundError:
+    except PhoneNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Authorized phone not found",
-        )
+        ) from e
     except MinimumPhonesError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
-        )
+        ) from e

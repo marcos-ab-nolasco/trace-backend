@@ -29,7 +29,7 @@ app = FastAPI(
 # Configure rate limiting
 app.state.limiter = limiter
 app.state.limiter_authenticated = limiter_authenticated
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # Configure CORS

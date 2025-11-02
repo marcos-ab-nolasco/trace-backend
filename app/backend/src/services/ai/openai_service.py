@@ -56,7 +56,7 @@ class OpenAIService(BaseAIService):
                         )
                     response = await client.chat.completions.create(
                         model=model,
-                        messages=payload,  # type: ignore[arg-type]
+                        messages=payload,
                     )
         except Exception as exc:  # noqa: BLE001 - upstream errors vary
             logger.error(
@@ -135,7 +135,7 @@ class OpenAIService(BaseAIService):
 
                     response = await client.chat.completions.create(
                         model=model,
-                        messages=messages,  # type: ignore[arg-type]
+                        messages=messages,
                         response_format={"type": "json_object"},
                     )
         except Exception as exc:  # noqa: BLE001

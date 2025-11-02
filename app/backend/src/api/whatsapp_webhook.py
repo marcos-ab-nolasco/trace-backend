@@ -11,8 +11,8 @@ from src.core.config import get_settings
 from src.db.session import get_db_session
 from src.services.briefing.extraction_service import ExtractionService
 from src.services.whatsapp.webhook_handler import WebhookHandler
-from src.services.whatsapp.whatsapp_service import WhatsAppService
 from src.services.whatsapp.whatsapp_account_service import WhatsAppAccountService
+from src.services.whatsapp.whatsapp_service import WhatsAppService
 
 router = APIRouter(prefix="/api/webhooks/whatsapp", tags=["whatsapp-webhooks"])
 logger = logging.getLogger(__name__)
@@ -62,9 +62,7 @@ async def verify_webhook(
     expected_token = settings.WHATSAPP_WEBHOOK_VERIFY_TOKEN
     if not expected_token or hub_verify_token != expected_token.get_secret_value():
         logger.warning("Webhook verification failed: invalid verify token")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid verify token"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid verify token")
 
     logger.info("Webhook verification successful")
     return hub_challenge
@@ -128,9 +126,7 @@ async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSessi
     message_type = content.get("type")
     phone_number_id = event.get("phone_number_id")
 
-    logger.info(
-        f"Incoming message: wa_id={wa_message_id}, from={from_number}, type={message_type}"
-    )
+    logger.info(f"Incoming message: wa_id={wa_message_id}, from={from_number}, type={message_type}")
 
     # Only process text messages for now
     if message_type != "text":
@@ -144,8 +140,8 @@ async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSessi
         return
 
     # Check if sender is an authorized phone
-    from src.services.authorized_phone_service import AuthorizedPhoneService
     from sqlalchemy import select
+
     from src.db.models.authorized_phone import AuthorizedPhone
 
     # Find if this phone is authorized in any organization
@@ -196,12 +192,16 @@ async def _handle_authorized_phone_message(
         phone_number_id: WhatsApp Business phone number ID
         db_session: Database session
     """
-    from src.services.ai import get_ai_service
-    from src.services.briefing.briefing_start_service import BriefingStartService, ClientHasActiveBriefingError
-    from src.services.template_service import TemplateService
-    from src.services.briefing.orchestrator import BriefingOrchestrator
-    from src.db.models.organization import Organization
     from sqlalchemy import select
+
+    from src.db.models.organization import Organization
+    from src.services.ai import get_ai_service
+    from src.services.briefing.briefing_start_service import (
+        BriefingStartService,
+        ClientHasActiveBriefingError,
+    )
+    from src.services.briefing.orchestrator import BriefingOrchestrator
+    from src.services.template_service import TemplateService
 
     try:
         # Get organization
@@ -254,6 +254,7 @@ async def _handle_authorized_phone_message(
 
         # Normalize phone
         from src.services.briefing.phone_utils import normalize_phone
+
         client_phone = normalize_phone(extracted_info.phone)
 
         # Select template

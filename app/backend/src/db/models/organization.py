@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, String, Text, Uuid, func
+from sqlalchemy import DateTime, String, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from src.db.models.briefing_template import BriefingTemplate
     from src.db.models.end_client import EndClient
     from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
-    from src.db.models.whatsapp_account import WhatsAppAccount
 
 
 class Organization(Base):

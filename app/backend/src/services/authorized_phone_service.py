@@ -64,11 +64,11 @@ class AuthorizedPhoneService:
             await self.db.refresh(phone)
             return phone
 
-        except IntegrityError:
+        except IntegrityError as e:
             await self.db.rollback()
             raise PhoneAlreadyExistsError(
                 f"Phone {phone_number} is already authorized for this organization"
-            )
+            ) from e
 
     async def remove_phone(
         self,
@@ -120,9 +120,7 @@ class AuthorizedPhoneService:
         Returns:
             List of authorized phones
         """
-        query = select(AuthorizedPhone).where(
-            AuthorizedPhone.organization_id == organization_id
-        )
+        query = select(AuthorizedPhone).where(AuthorizedPhone.organization_id == organization_id)
 
         if not include_inactive:
             query = query.where(AuthorizedPhone.is_active == True)  # noqa: E712

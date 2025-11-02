@@ -47,7 +47,9 @@ class EndClient(Base):
     __table_args__ = (UniqueConstraint("organization_id", "phone", name="uq_organization_phone"),)
 
     # Relationships
-    organization: Mapped["Organization"] = relationship("Organization", back_populates="end_clients")
+    organization: Mapped["Organization"] = relationship(
+        "Organization", back_populates="end_clients"
+    )
     architect: Mapped["Architect"] = relationship("Architect", back_populates="end_clients")
     conversations: Mapped[list["Conversation"]] = relationship(
         "Conversation", back_populates="end_client", cascade="all, delete-orphan"

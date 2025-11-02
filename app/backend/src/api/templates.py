@@ -36,9 +36,7 @@ async def list_templates(
     )
 
     # Convert to response models
-    templates_with_versions = [
-        BriefingTemplateWithVersion.model_validate(t) for t in templates
-    ]
+    templates_with_versions = [BriefingTemplateWithVersion.model_validate(t) for t in templates]
 
     return BriefingTemplateList(templates=templates_with_versions, total=len(templates))
 
@@ -62,7 +60,7 @@ async def create_template(
         )
         return BriefingTemplateWithVersion.model_validate(template)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/{template_id}", response_model=BriefingTemplateWithVersion)
@@ -77,14 +75,10 @@ async def get_template(
     Returns 404 if template not found or user doesn't have access.
     """
     service = TemplateService(db_session)
-    template = await service.get_template_by_id(
-        template_id=template_id, architect_id=architect_id
-    )
+    template = await service.get_template_by_id(template_id=template_id, architect_id=architect_id)
 
     if not template:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Template not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
     return BriefingTemplateWithVersion.model_validate(template)
 
@@ -109,9 +103,9 @@ async def update_template(
         )
         return BriefingTemplateWithVersion.model_validate(template)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except PermissionError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
 
 
 @router.get("/{template_id}/versions", response_model=dict)
@@ -136,4 +130,4 @@ async def get_template_versions(
             "total": len(versions),
         }
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e

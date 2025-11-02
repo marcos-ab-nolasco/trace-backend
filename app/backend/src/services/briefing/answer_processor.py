@@ -8,8 +8,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.architect import Architect
+from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion

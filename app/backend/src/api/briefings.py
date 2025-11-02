@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing
-from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.conversation import Conversation, ConversationType
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
@@ -85,14 +84,14 @@ async def start_briefing_from_whatsapp(
         _validate_extraction(extracted_info)
 
         # Step 4: Normalize phone number
-        normalized_phone = normalize_phone(extracted_info.phone)  # type: ignore
+        normalized_phone = normalize_phone(extracted_info.phone)
 
         # Step 5: Create or update EndClient
         end_client = await _create_or_update_client(
             db_session=db_session,
             organization_id=organization.id,
             architect_id=request.architect_id,
-            name=extracted_info.name,  # type: ignore
+            name=extracted_info.name,
             phone=normalized_phone,
         )
 
@@ -132,7 +131,7 @@ async def start_briefing_from_whatsapp(
             )
 
         # Step 10: Create conversation record
-        conversation = await _create_conversation(
+        await _create_conversation(
             db_session=db_session,
             architect=architect,
             end_client=end_client,
@@ -187,7 +186,7 @@ async def start_briefing_from_whatsapp(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start briefing: {str(e)}",
-        )
+        ) from e
 
 
 # Helper functions
@@ -290,7 +289,7 @@ async def _create_or_update_client(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Erro ao criar cliente. O telefone pode já estar cadastrado.",
-        )
+        ) from e
 
 
 def _get_whatsapp_service(organization: Organization) -> WhatsAppService:

@@ -4,7 +4,8 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, Uuid, func
+from sqlalchemy import DateTime, ForeignKey, Uuid, func
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,7 +44,11 @@ class Briefing(Base):
         Uuid, ForeignKey("template_versions.id", ondelete="RESTRICT"), index=True
     )
     conversation_id: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("conversations.id", ondelete="SET NULL"), index=True, unique=True, nullable=True
+        Uuid,
+        ForeignKey("conversations.id", ondelete="SET NULL"),
+        index=True,
+        unique=True,
+        nullable=True,
     )
     status: Mapped[BriefingStatus] = mapped_column(
         SQLEnum(BriefingStatus, native_enum=False, length=20),
@@ -75,4 +80,6 @@ class Briefing(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<Briefing(id={self.id}, status={self.status.value}, client_id={self.end_client_id})>"
+        return (
+            f"<Briefing(id={self.id}, status={self.status.value}, client_id={self.end_client_id})>"
+        )

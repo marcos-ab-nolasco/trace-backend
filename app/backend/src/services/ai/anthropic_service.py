@@ -113,8 +113,8 @@ class AnthropicService(BaseAIService):
 
         # Build enhanced system prompt with schema instructions
         structured_system = (
-            f"{system_prompt}\n\n" if system_prompt else ""
-        ) + f"""You must respond with valid JSON that matches this schema:
+            (f"{system_prompt}\n\n" if system_prompt else "")
+            + f"""You must respond with valid JSON that matches this schema:
 
 {schema_str}
 
@@ -122,6 +122,7 @@ IMPORTANT:
 - Return ONLY the JSON object, no additional text
 - Ensure all required fields are present
 - Match the exact field names and types from the schema"""
+        )
 
         # Build messages
         messages = [{"role": "user", "content": prompt}]
@@ -181,7 +182,9 @@ IMPORTANT:
             data = json.loads(content)
             return response_model.model_validate(data)
         except (json.JSONDecodeError, ValidationError) as exc:
-            logger.error(f"Failed to parse Anthropic structured response: {exc}\nContent: {content}")
+            logger.error(
+                f"Failed to parse Anthropic structured response: {exc}\nContent: {content}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Invalid structured response from Anthropic: {exc}",

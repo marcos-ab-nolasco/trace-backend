@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, String, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID as Uuid
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.session import Base
 
 if TYPE_CHECKING:
-    from src.db.models.organization import Organization
     from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
 
 

@@ -3,13 +3,15 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuthorizedPhoneCreate(BaseModel):
     """Schema for creating an authorized phone."""
 
-    phone_number: str = Field(..., description="Phone number in international format (e.g., +5511987654321)")
+    phone_number: str = Field(
+        ..., description="Phone number in international format (e.g., +5511987654321)"
+    )
 
 
 class AuthorizedPhoneRead(BaseModel):

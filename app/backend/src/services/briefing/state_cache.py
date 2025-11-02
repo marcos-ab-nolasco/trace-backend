@@ -47,17 +47,15 @@ class BriefingStateCache:
 
         try:
             key = self._get_key(briefing_id)
-            data = await self.redis.get(key)  # type: ignore[union-attr]
+            data = await self.redis.get(key)
             if data:
-                return json.loads(data)
+                return json.loads(data)  # type: ignore
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Failed to get briefing state from cache: {exc}")
 
         return None
 
-    async def set_state(
-        self, briefing_id: UUID, state: dict[str, Any], ttl: int = 3600
-    ) -> None:
+    async def set_state(self, briefing_id: UUID, state: dict[str, Any], ttl: int = 3600) -> None:
         """Cache briefing state.
 
         Args:
@@ -71,7 +69,7 @@ class BriefingStateCache:
         try:
             key = self._get_key(briefing_id)
             data = json.dumps(state, default=str)
-            await self.redis.set(key, data, ex=ttl)  # type: ignore[union-attr]
+            await self.redis.set(key, data, ex=ttl)
             logger.debug(f"Cached briefing state: {briefing_id}")
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Failed to cache briefing state: {exc}")
@@ -87,7 +85,7 @@ class BriefingStateCache:
 
         try:
             key = self._get_key(briefing_id)
-            await self.redis.delete(key)  # type: ignore[union-attr]
+            await self.redis.delete(key)
             logger.debug(f"Invalidated cached state: {briefing_id}")
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Failed to invalidate briefing state: {exc}")
@@ -107,7 +105,7 @@ class BriefingStateCache:
 
         try:
             key = f"briefing:question:{briefing_id}"
-            await self.redis.set(key, str(question_order), ex=ttl)  # type: ignore[union-attr]
+            await self.redis.set(key, str(question_order), ex=ttl)
         except Exception as exc:  # noqa: BLE001
             logger.warning(f"Failed to cache current question: {exc}")
 
@@ -125,7 +123,7 @@ class BriefingStateCache:
 
         try:
             key = f"briefing:question:{briefing_id}"
-            data = await self.redis.get(key)  # type: ignore[union-attr]
+            data = await self.redis.get(key)
             if data:
                 return int(data)
         except Exception as exc:  # noqa: BLE001

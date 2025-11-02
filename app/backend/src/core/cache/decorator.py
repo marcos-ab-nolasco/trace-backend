@@ -7,7 +7,7 @@ import pickle
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
-from functools import wraps
+from functools import lru_cache, wraps
 from typing import Any, TypedDict, TypeVar, cast
 
 from redis.asyncio import Redis
@@ -378,20 +378,21 @@ class RedisCache:
             def cache_key_for(*call_args: Any, **call_kwargs: Any) -> str:
                 return _build_cache_key(call_args, call_kwargs)[0]
 
-            wrapper.invalidate = invalidate  # type: ignore[attr-defined]
-            wrapper.invalidate_all = invalidate_all  # type: ignore[attr-defined]
-            wrapper.is_cached = is_cached  # type: ignore[attr-defined]
-            wrapper.has_valid_value = has_valid_value  # type: ignore[attr-defined]
-            wrapper.get_cached_timestamp = get_cached_timestamp  # type: ignore[attr-defined]
-            wrapper.cache_instance = self  # type: ignore[attr-defined]
-            wrapper.cache_key_for = cache_key_for  # type: ignore[attr-defined]
-            wrapper.cache_namespace = resolved_namespace  # type: ignore[attr-defined]
+            wrapper.invalidate = invalidate
+            wrapper.invalidate_all = invalidate_all
+            wrapper.is_cached = is_cached
+            wrapper.has_valid_value = has_valid_value
+            wrapper.get_cached_timestamp = get_cached_timestamp
+            wrapper.cache_instance = self
+            wrapper.cache_key_for = cache_key_for
+            wrapper.cache_namespace = resolved_namespace
 
             return cast(FuncType, wrapper)
 
         return decorator
 
 
+@lru_cache(1)
 def get_local_redis_cache() -> RedisCache:
     return RedisCache(get_redis_client(), prefix=settings.CACHE_PREFIX)
 

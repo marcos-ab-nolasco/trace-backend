@@ -25,7 +25,9 @@ class BriefingTemplate(Base):
         Uuid, primary_key=True, server_default=func.gen_random_uuid(), index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    category: Mapped[str | None] = mapped_column(String(100), nullable=True)  # legacy categorization
+    category: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )  # legacy categorization
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_global: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     organization_id: Mapped[UUID | None] = mapped_column(

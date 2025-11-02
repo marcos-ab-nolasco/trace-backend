@@ -8,8 +8,8 @@ from src.db.models.end_client import EndClient
 from src.db.models.message import Message
 from src.db.models.organization import Organization
 from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
-from src.db.models.template_version import TemplateVersion
 from src.db.models.project_type import ProjectType
+from src.db.models.template_version import TemplateVersion
 from src.db.models.whatsapp_account import WhatsAppAccount
 from src.db.models.whatsapp_message import MessageDirection, MessageStatus, WhatsAppMessage
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
