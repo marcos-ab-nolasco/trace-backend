@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     WHATSAPP_PHONE_NUMBER_ID: str | None = None
     WHATSAPP_ACCESS_TOKEN: SecretStr | None = None
 
+    # Rate Limiting
+    RATE_LIMIT_WEBHOOK: str = "100/minute"  # Webhook POST endpoint limit
+    RATE_LIMIT_GENERAL: str = "60/minute"  # General unauthenticated endpoints
+    RATE_LIMIT_AUTHENTICATED: str = "200/minute"  # Authenticated user endpoints
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]

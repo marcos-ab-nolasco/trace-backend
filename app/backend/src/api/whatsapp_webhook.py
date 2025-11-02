@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
+from src.core.rate_limit import limiter
 from src.db.session import get_db_session
 from src.services.briefing.extraction_service import ExtractionService
 from src.services.whatsapp.webhook_handler import WebhookHandler
@@ -69,6 +70,7 @@ async def verify_webhook(
 
 
 @router.post("", response_model=WebhookResponse)
+@limiter.limit(get_settings().RATE_LIMIT_WEBHOOK)
 async def receive_webhook(
     request: Request,
     payload: dict[str, Any],

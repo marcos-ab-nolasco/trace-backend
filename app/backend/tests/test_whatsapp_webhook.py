@@ -273,3 +273,34 @@ async def test_webhook_handles_unsupported_message_type(client: AsyncClient):
 
     # Should return 200 even for unsupported types
     assert response.status_code == 200
+
+
+# Rate Limiting Tests (Issue #7)
+@pytest.mark.asyncio
+async def test_webhook_rate_limit_enforced(client: AsyncClient):
+    """Test that webhook POST endpoint enforces rate limit.
+
+    Tests Issue #7 fix: webhook should reject requests exceeding configured limit.
+    .env.test sets RATE_LIMIT_WEBHOOK=5/minute for easier testing.
+    """
+    # Simple payload that will be accepted
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [],
+    }
+
+    # Make requests up to the limit (5 per .env.test)
+    # All should succeed with 200
+    for i in range(5):
+        response = await client.post("/api/webhooks/whatsapp", json=payload)
+        assert response.status_code == 200, f"Request {i+1}/5 should succeed"
+
+    # Next request should be rate limited
+    response = await client.post("/api/webhooks/whatsapp", json=payload)
+    assert response.status_code == 429, "6th request should be rate limited with 429 status"
+
+    # Verify error response contains rate limit information
+    response_data = response.json()
+    assert (
+        "error" in response_data or "detail" in response_data
+    ), "Error response should contain error details"
