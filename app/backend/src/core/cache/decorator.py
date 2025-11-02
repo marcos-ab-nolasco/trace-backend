@@ -7,7 +7,7 @@ import pickle
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
-from functools import lru_cache, wraps
+from functools import wraps
 from typing import Any, TypedDict, TypeVar, cast
 
 from redis.asyncio import Redis
@@ -392,9 +392,8 @@ class RedisCache:
         return decorator
 
 
-@lru_cache(1)
 def get_local_redis_cache() -> RedisCache:
-    return RedisCache(get_redis_client(), prefix=settings.CACHE_PREFIX)
+    return RedisCache(redis_client=get_redis_client(), prefix=settings.CACHE_PREFIX)
 
 
 def redis_cache_decorator(

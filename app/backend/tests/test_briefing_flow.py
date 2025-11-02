@@ -73,12 +73,14 @@ async def test_templates(db_session: AsyncSession) -> dict[str, BriefingTemplate
 
 @pytest.fixture
 async def existing_client(
-    db_session: AsyncSession, test_organization: Organization, test_architect: Architect
+    db_session: AsyncSession,
+    test_organization_with_whatsapp: Organization,
+    test_architect_with_whatsapp: Architect,
 ) -> EndClient:
     """Create existing end client with normalized phone."""
     client = EndClient(
-        organization_id=test_organization.id,
-        architect_id=test_architect.id,
+        organization_id=test_organization_with_whatsapp.id,
+        architect_id=test_architect_with_whatsapp.id,
         name="Existing Client",
         phone="+5511987654321",  # Already normalized
         email="existing@test.com",
@@ -94,7 +96,7 @@ async def existing_client(
 async def test_start_briefing_with_complete_client_info(
     client: AsyncClient,
     db_session: AsyncSession,
-    test_architect: Architect,
+    test_architect_with_whatsapp: Architect,
     test_templates: dict[str, BriefingTemplate],
     mocker: MockerFixture,
 ):
@@ -129,7 +131,7 @@ async def test_start_briefing_with_complete_client_info(
     response = await client.post(
         "/api/briefings/start-from-whatsapp",
         json={
-            "architect_id": str(test_architect.id),
+            "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Oi, preciso de orçamento para João Silva, tel 11999887766, reforma",
         },
     )
@@ -184,7 +186,7 @@ async def test_start_briefing_with_complete_client_info(
 async def test_start_briefing_with_existing_client_duplicate_phone(
     client: AsyncClient,
     db_session: AsyncSession,
-    test_architect: Architect,
+    test_architect_with_whatsapp: Architect,
     test_templates: dict[str, BriefingTemplate],
     existing_client: EndClient,
     mocker: MockerFixture,
@@ -220,7 +222,7 @@ async def test_start_briefing_with_existing_client_duplicate_phone(
     response = await client.post(
         "/api/briefings/start-from-whatsapp",
         json={
-            "architect_id": str(test_architect.id),
+            "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Novo projeto para o João Silva",
         },
     )
@@ -242,7 +244,7 @@ async def test_start_briefing_with_existing_client_duplicate_phone(
     # Verify only one client exists with this phone
     result = await db_session.execute(
         select(EndClient).where(
-            EndClient.architect_id == test_architect.id,
+            EndClient.architect_id == test_architect_with_whatsapp.id,
             EndClient.phone == existing_client.phone,
         )
     )
@@ -261,7 +263,7 @@ async def test_start_briefing_with_existing_client_duplicate_phone(
 async def test_start_briefing_with_incomplete_extraction_missing_phone(
     client: AsyncClient,
     db_session: AsyncSession,
-    test_architect: Architect,
+    test_architect_with_whatsapp: Architect,
     mocker: MockerFixture,
 ):
     """Test starting briefing fails when phone number is missing."""
@@ -282,7 +284,7 @@ async def test_start_briefing_with_incomplete_extraction_missing_phone(
     response = await client.post(
         "/api/briefings/start-from-whatsapp",
         json={
-            "architect_id": str(test_architect.id),
+            "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Preciso de orçamento para João Silva",
         },
     )
@@ -297,7 +299,7 @@ async def test_start_briefing_with_incomplete_extraction_missing_phone(
 async def test_start_briefing_with_incomplete_extraction_missing_name(
     client: AsyncClient,
     db_session: AsyncSession,
-    test_architect: Architect,
+    test_architect_with_whatsapp: Architect,
     mocker: MockerFixture,
 ):
     """Test starting briefing fails when client name is missing."""
@@ -318,7 +320,7 @@ async def test_start_briefing_with_incomplete_extraction_missing_name(
     response = await client.post(
         "/api/briefings/start-from-whatsapp",
         json={
-            "architect_id": str(test_architect.id),
+            "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Preciso de orçamento, telefone 11999887766",
         },
     )
@@ -333,7 +335,7 @@ async def test_start_briefing_with_incomplete_extraction_missing_name(
 async def test_start_briefing_with_low_confidence_extraction(
     client: AsyncClient,
     db_session: AsyncSession,
-    test_architect: Architect,
+    test_architect_with_whatsapp: Architect,
     mocker: MockerFixture,
 ):
     """Test starting briefing fails when extraction confidence is too low."""
@@ -354,7 +356,7 @@ async def test_start_briefing_with_low_confidence_extraction(
     response = await client.post(
         "/api/briefings/start-from-whatsapp",
         json={
-            "architect_id": str(test_architect.id),
+            "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "João talvez 11999887766",
         },
     )
@@ -369,7 +371,7 @@ async def test_start_briefing_with_low_confidence_extraction(
 async def test_template_identification_by_project_type(
     client: AsyncClient,
     db_session: AsyncSession,
-    test_architect: Architect,
+    test_architect_with_whatsapp: Architect,
     test_templates: dict[str, BriefingTemplate],
     mocker: MockerFixture,
 ):
@@ -407,7 +409,7 @@ async def test_template_identification_by_project_type(
         response = await client.post(
             "/api/briefings/start-from-whatsapp",
             json={
-                "architect_id": str(test_architect.id),
+                "architect_id": str(test_architect_with_whatsapp.id),
                 "architect_message": f"Cliente para {project_type}",
             },
         )
@@ -430,7 +432,7 @@ async def test_template_identification_by_project_type(
 async def test_transaction_rollback_on_whatsapp_failure(
     client: AsyncClient,
     db_session: AsyncSession,
-    test_architect: Architect,
+    test_architect_with_whatsapp: Architect,
     test_templates: dict[str, BriefingTemplate],
     mocker: MockerFixture,
 ):
@@ -466,7 +468,7 @@ async def test_transaction_rollback_on_whatsapp_failure(
     )
 
     # Capture architect ID before making request
-    architect_id = test_architect.id
+    architect_id = test_architect_with_whatsapp.id
 
     # Make request
     response = await client.post(
@@ -487,7 +489,7 @@ async def test_transaction_rollback_on_whatsapp_failure(
 async def test_conversation_record_creation_with_whatsapp_context(
     client: AsyncClient,
     db_session: AsyncSession,
-    test_architect: Architect,
+    test_architect_with_whatsapp: Architect,
     test_templates: dict[str, BriefingTemplate],
     mocker: MockerFixture,
 ):
@@ -522,7 +524,7 @@ async def test_conversation_record_creation_with_whatsapp_context(
     response = await client.post(
         "/api/briefings/start-from-whatsapp",
         json={
-            "architect_id": str(test_architect.id),
+            "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Maria Santos, 11977665544, projeto comercial",
         },
     )

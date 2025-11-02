@@ -26,6 +26,25 @@ async def test_architect(db_session: AsyncSession, test_organization: Organizati
 
 
 @pytest.fixture
+async def test_architect_with_whatsapp(
+    db_session: AsyncSession, test_organization_with_whatsapp: Organization
+) -> Architect:
+    """Create test architect with WhatsApp-enabled organization."""
+    architect = Architect(
+        organization_id=test_organization_with_whatsapp.id,
+        email="whatsapp@example.com",
+        hashed_password=hash_password("testpassword123"),
+        full_name="WhatsApp Test Architect",
+        phone="+5511888888888",
+        is_authorized=True,
+    )
+    db_session.add(architect)
+    await db_session.commit()
+    await db_session.refresh(architect)
+    return architect
+
+
+@pytest.fixture
 async def test_user(test_architect: Architect) -> Architect:
     """Backwards-compatible fixture returning the primary architect."""
     return test_architect

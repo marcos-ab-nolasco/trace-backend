@@ -6,7 +6,7 @@ direct imports like: `from fixtures import test_organization`
 
 # Database fixtures
 # Auth fixtures
-from .auth import auth_headers, test_architect, test_user
+from .auth import auth_headers, test_architect, test_architect_with_whatsapp, test_user
 
 # HTTP client fixtures
 from .client import client
@@ -40,6 +40,7 @@ __all__ = [
     "test_organization_with_whatsapp",
     # Auth
     "test_architect",
+    "test_architect_with_whatsapp",
     "test_user",
     "auth_headers",
     # Clients
