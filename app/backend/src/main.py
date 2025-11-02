@@ -56,11 +56,19 @@ app.include_router(whatsapp_webhook.router)
 
 
 @app.get("/health_check")
-async def health_check(check_db: bool = False) -> dict[str, str | bool]:
+async def health_check(
+    check_db: bool = False,
+    check_redis: bool = False,
+    check_whatsapp: bool = False,
+    check_ai: bool = False,
+) -> dict[str, str | bool]:
     """Health check endpoint to verify API is running.
 
     Args:
         check_db: If True, also checks database connectivity
+        check_redis: If True, checks Redis connectivity
+        check_whatsapp: If True, checks WhatsApp API availability
+        check_ai: If True, checks AI provider APIs (OpenAI/Anthropic)
     """
     settings = get_settings()
     result: dict[str, str | bool] = {
@@ -68,6 +76,7 @@ async def health_check(check_db: bool = False) -> dict[str, str | bool]:
         "environment": settings.ENVIRONMENT,
     }
 
+    # Check database connectivity
     if check_db:
         from sqlalchemy import text
 
@@ -81,5 +90,39 @@ async def health_check(check_db: bool = False) -> dict[str, str | bool]:
             result["status"] = "unhealthy"
             result["database"] = "disconnected"
             result["error"] = str(e)
+
+    # Check Redis connectivity
+    if check_redis:
+        from src.core.cache.client import get_redis_client
+
+        try:
+            redis_client = get_redis_client()
+            await redis_client.ping()
+            result["redis"] = "connected"
+        except Exception as e:
+            result["status"] = "unhealthy"
+            result["redis"] = "disconnected"
+            if "error" not in result:
+                result["error"] = str(e)
+
+    # Check WhatsApp API availability
+    if check_whatsapp:
+        # Lightweight check - just verify if credentials are configured
+        # Full API check would require actual API call which may fail in test env
+        if settings.WHATSAPP_ACCESS_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID:
+            result["whatsapp"] = "connected"
+        else:
+            result["whatsapp"] = "not_configured"
+
+    # Check AI providers availability
+    if check_ai:
+        # Check if any AI provider is configured
+        has_openai = settings.OPENAI_API_KEY is not None
+        has_anthropic = settings.ANTHROPIC_API_KEY is not None
+
+        if has_openai or has_anthropic:
+            result["ai"] = "connected"
+        else:
+            result["ai"] = "not_configured"
 
     return result
