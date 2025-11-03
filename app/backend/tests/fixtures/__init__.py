@@ -6,7 +6,13 @@ direct imports like: `from fixtures import test_organization`
 
 # Database fixtures
 # Auth fixtures
-from .auth import auth_headers, test_architect, test_architect_with_whatsapp, test_user
+from .auth import (
+    auth_headers,
+    auth_headers_whatsapp,
+    test_architect,
+    test_architect_with_whatsapp,
+    test_user,
+)
 
 # HTTP client fixtures
 from .client import client
@@ -16,7 +22,15 @@ from .clients import test_end_client
 from .database import db_session, event_loop, test_engine
 
 # Mock fixtures
-from .mocks import avoid_external_requests, clear_redis, mock_ai_service, patch_redis
+from .mocks import (
+    avoid_external_requests,
+    clear_redis,
+    mock_ai_service,
+    mock_extraction_service,
+    mock_template_service,
+    mock_whatsapp_service,
+    patch_redis,
+)
 
 # Organization fixtures
 from .organization import test_organization, test_organization_with_whatsapp
@@ -43,6 +57,7 @@ __all__ = [
     "test_architect_with_whatsapp",
     "test_user",
     "auth_headers",
+    "auth_headers_whatsapp",
     # Clients
     "test_end_client",
     # Templates
@@ -56,6 +71,9 @@ __all__ = [
     # Mocks
     "avoid_external_requests",
     "mock_ai_service",
+    "mock_extraction_service",
+    "mock_template_service",
+    "mock_whatsapp_service",
     "patch_redis",
     "clear_redis",
 ]

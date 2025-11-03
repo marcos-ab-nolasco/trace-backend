@@ -1,8 +1,9 @@
 """Tests for health check endpoint (Issue #6)."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from httpx import AsyncClient
-from unittest.mock import AsyncMock, patch
 
 
 @pytest.mark.asyncio

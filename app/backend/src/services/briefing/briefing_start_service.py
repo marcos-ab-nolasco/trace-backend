@@ -86,7 +86,7 @@ class BriefingStartService:
                 str(e),
             )
             raise ClientHasActiveBriefingError(
-                f"Client already has an active briefing. "
+                "Client already has an active briefing. "
                 "Please complete or cancel the existing briefing before starting a new one."
             ) from e
 

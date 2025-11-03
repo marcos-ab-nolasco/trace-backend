@@ -8,6 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.dependencies import get_current_architect
+from src.core.organization_access import require_organization_access
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing
 from src.db.models.conversation import Conversation, ConversationType
@@ -33,8 +35,10 @@ DEFAULT_EXTRACTION_MODEL = "gpt-4o-mini"
 
 
 @router.post("/start-from-whatsapp", response_model=StartBriefingResponse)
+@require_organization_access("architect_id")
 async def start_briefing_from_whatsapp(
     request: StartBriefingRequest,
+    current_architect: Architect = Depends(get_current_architect),
     db_session: AsyncSession = Depends(get_db_session),
 ) -> StartBriefingResponse:
     """

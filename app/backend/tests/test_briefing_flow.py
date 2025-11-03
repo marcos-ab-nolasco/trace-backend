@@ -97,6 +97,7 @@ async def test_start_briefing_with_complete_client_info(
     client: AsyncClient,
     db_session: AsyncSession,
     test_architect_with_whatsapp: Architect,
+    auth_headers_whatsapp: dict[str, str],
     test_templates: dict[str, BriefingTemplate],
     mocker: MockerFixture,
 ):
@@ -134,6 +135,7 @@ async def test_start_briefing_with_complete_client_info(
             "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Oi, preciso de orçamento para João Silva, tel 11999887766, reforma",
         },
+        headers=auth_headers_whatsapp,
     )
 
     # Assertions
@@ -188,6 +190,7 @@ async def test_start_briefing_with_existing_client_duplicate_phone(
     db_session: AsyncSession,
     test_architect_with_whatsapp: Architect,
     test_templates: dict[str, BriefingTemplate],
+    auth_headers_whatsapp: dict[str, str],
     existing_client: EndClient,
     mocker: MockerFixture,
 ):
@@ -225,6 +228,7 @@ async def test_start_briefing_with_existing_client_duplicate_phone(
             "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Novo projeto para o João Silva",
         },
+        headers=auth_headers_whatsapp,
     )
 
     # Assertions
@@ -264,6 +268,7 @@ async def test_start_briefing_with_incomplete_extraction_missing_phone(
     client: AsyncClient,
     db_session: AsyncSession,
     test_architect_with_whatsapp: Architect,
+    auth_headers_whatsapp: dict[str, str],
     mocker: MockerFixture,
 ):
     """Test starting briefing fails when phone number is missing."""
@@ -287,6 +292,7 @@ async def test_start_briefing_with_incomplete_extraction_missing_phone(
             "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Preciso de orçamento para João Silva",
         },
+        headers=auth_headers_whatsapp,
     )
 
     # Assertions
@@ -300,6 +306,7 @@ async def test_start_briefing_with_incomplete_extraction_missing_name(
     client: AsyncClient,
     db_session: AsyncSession,
     test_architect_with_whatsapp: Architect,
+    auth_headers_whatsapp: dict[str, str],
     mocker: MockerFixture,
 ):
     """Test starting briefing fails when client name is missing."""
@@ -323,6 +330,7 @@ async def test_start_briefing_with_incomplete_extraction_missing_name(
             "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Preciso de orçamento, telefone 11999887766",
         },
+        headers=auth_headers_whatsapp,
     )
 
     # Assertions
@@ -336,6 +344,7 @@ async def test_start_briefing_with_low_confidence_extraction(
     client: AsyncClient,
     db_session: AsyncSession,
     test_architect_with_whatsapp: Architect,
+    auth_headers_whatsapp: dict[str, str],
     mocker: MockerFixture,
 ):
     """Test starting briefing fails when extraction confidence is too low."""
@@ -359,6 +368,7 @@ async def test_start_briefing_with_low_confidence_extraction(
             "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "João talvez 11999887766",
         },
+        headers=auth_headers_whatsapp,
     )
 
     # Assertions
@@ -372,6 +382,7 @@ async def test_template_identification_by_project_type(
     client: AsyncClient,
     db_session: AsyncSession,
     test_architect_with_whatsapp: Architect,
+    auth_headers_whatsapp: dict[str, str],
     test_templates: dict[str, BriefingTemplate],
     mocker: MockerFixture,
 ):
@@ -412,6 +423,7 @@ async def test_template_identification_by_project_type(
                 "architect_id": str(test_architect_with_whatsapp.id),
                 "architect_message": f"Cliente para {project_type}",
             },
+            headers=auth_headers_whatsapp,
         )
 
         # Assertions
@@ -433,6 +445,7 @@ async def test_transaction_rollback_on_whatsapp_failure(
     client: AsyncClient,
     db_session: AsyncSession,
     test_architect_with_whatsapp: Architect,
+    auth_headers_whatsapp: dict[str, str],
     test_templates: dict[str, BriefingTemplate],
     mocker: MockerFixture,
 ):
@@ -477,6 +490,7 @@ async def test_transaction_rollback_on_whatsapp_failure(
             "architect_id": str(architect_id),
             "architect_message": "Test rollback",
         },
+        headers=auth_headers_whatsapp,
     )
 
     # Should return error
@@ -490,6 +504,7 @@ async def test_conversation_record_creation_with_whatsapp_context(
     client: AsyncClient,
     db_session: AsyncSession,
     test_architect_with_whatsapp: Architect,
+    auth_headers_whatsapp: dict[str, str],
     test_templates: dict[str, BriefingTemplate],
     mocker: MockerFixture,
 ):
@@ -527,6 +542,7 @@ async def test_conversation_record_creation_with_whatsapp_context(
             "architect_id": str(test_architect_with_whatsapp.id),
             "architect_message": "Maria Santos, 11977665544, projeto comercial",
         },
+        headers=auth_headers_whatsapp,
     )
 
     # Assertions
@@ -561,6 +577,7 @@ async def test_conversation_record_creation_with_whatsapp_context(
 async def test_start_briefing_with_invalid_architect_id(
     client: AsyncClient,
     db_session: AsyncSession,
+    auth_headers_whatsapp: dict[str, str],
 ):
     """Test starting briefing with non-existent architect ID."""
     fake_architect_id = "00000000-0000-0000-0000-000000000000"
@@ -571,6 +588,7 @@ async def test_start_briefing_with_invalid_architect_id(
             "architect_id": fake_architect_id,
             "architect_message": "Test message",
         },
+        headers=auth_headers_whatsapp,
     )
 
     # Should return 404 or 400
@@ -582,6 +600,7 @@ async def test_start_briefing_with_invalid_architect_id(
 @pytest.mark.asyncio
 async def test_start_briefing_validates_request_schema(
     client: AsyncClient,
+    auth_headers_whatsapp: dict[str, str],
 ):
     """Test that request schema validation works correctly."""
     # Missing required fields
@@ -591,6 +610,7 @@ async def test_start_briefing_validates_request_schema(
             "architect_id": "invalid-uuid-format",
             # Missing architect_message
         },
+        headers=auth_headers_whatsapp,
     )
 
     assert response.status_code == 422  # Unprocessable Entity

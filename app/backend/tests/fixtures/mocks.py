@@ -40,6 +40,54 @@ def mock_ai_service(mocker: MockerFixture) -> Any:
     return mock_service
 
 
+@pytest.fixture
+def mock_extraction_service(mocker: MockerFixture) -> Any:
+    """Mock ExtractionService for briefing tests.
+
+    Returns a mock that can be configured per-test.
+    Tests should configure the return value like:
+        mock_extraction_service.return_value = ExtractedClientInfo(...)
+    """
+    from src.schemas.briefing import ExtractedClientInfo
+
+    mock = mocker.AsyncMock(
+        return_value=ExtractedClientInfo(
+            name="Test Client",
+            phone="11999999999",
+            project_type="residencial",
+            confidence=0.95,
+            raw_text="Test message",
+        )
+    )
+    mocker.patch("src.api.briefings.ExtractionService.extract_client_info", new=mock)
+    return mock
+
+
+@pytest.fixture
+def mock_whatsapp_service(mocker: MockerFixture) -> Any:
+    """Mock WhatsAppService for briefing tests.
+
+    Returns a mock that simulates successful WhatsApp message sending.
+    """
+    mock = mocker.AsyncMock(return_value={"success": True, "message_id": "wamid.test123"})
+    mocker.patch("src.api.briefings.WhatsAppService.send_text_message", new=mock)
+    return mock
+
+
+@pytest.fixture
+def mock_template_service(mocker: MockerFixture) -> Any:
+    """Mock TemplateService for briefing tests.
+
+    Returns a mock that can be configured per-test to return specific template versions.
+    """
+    mock = mocker.AsyncMock()
+    mocker.patch(
+        "src.services.template_service.TemplateService.select_template_version_for_project",
+        new=mock,
+    )
+    return mock
+
+
 @pytest.fixture(autouse=True)
 def patch_redis() -> Generator[Any, Any, Any]:
     """Patch Redis with FakeRedis for testing."""

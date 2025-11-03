@@ -1,9 +1,8 @@
 """Tests for BriefingStartService."""
 
-import asyncio
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing, BriefingStatus
