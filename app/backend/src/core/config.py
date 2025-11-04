@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: SecretStr
+    ENCRYPTION_KEY: SecretStr  # Fernet key for encrypting tokens at rest
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
