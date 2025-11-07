@@ -1,6 +1,7 @@
 """WhatsApp webhook endpoints for receiving messages and events."""
 
 import logging
+from datetime import UTC
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -99,7 +100,7 @@ async def receive_webhook(
             if event_type == "message":
                 await _handle_incoming_message(event, db_session)
             elif event_type == "status_update":
-                await _handle_status_update(event)
+                await _handle_status_update(event, db_session)
             else:
                 logger.warning(f"Unknown event type: {event_type}")
 
@@ -365,20 +366,52 @@ async def _handle_client_answer(
         )
 
 
-async def _handle_status_update(event: dict[str, Any]) -> None:
+async def _handle_status_update(event: dict[str, Any], db_session: AsyncSession) -> None:
     """
     Handle message status update from WhatsApp.
 
+    Persists status changes to WhatsAppMessage table, including:
+    - Status field update (sent, delivered, read, failed)
+    - delivered_at timestamp for 'delivered' status
+    - read_at timestamp for 'read' status
+    - error_code and error_message for 'failed' status
+
     Args:
         event: Parsed status update event
+        db_session: Database session for persistence
     """
+    from datetime import datetime
+
+    from sqlalchemy import select
+
+    from src.db.models.whatsapp_message import WhatsAppMessage
+
     wa_message_id = event.get("wa_message_id")
     new_status = event.get("status")
 
     logger.info(f"Status update: wa_id={wa_message_id}, status={new_status}")
 
-    # TODO: In next issues, this will:
-    # 1. Find WhatsAppMessage by wa_message_id
-    # 2. Update status field
-    # 3. Update error fields if failed
-    # For now, just log it
+    # Find WhatsAppMessage by wa_message_id
+    result = await db_session.execute(
+        select(WhatsAppMessage).where(WhatsAppMessage.wa_message_id == wa_message_id)
+    )
+    message = result.scalar_one_or_none()
+
+    if not message:
+        logger.warning(f"Message {wa_message_id} not found for status update")
+        return
+
+    # Update status
+    message.status = new_status
+
+    # Update timestamps and error fields based on status
+    if new_status == "delivered":
+        message.delivered_at = datetime.now(UTC)
+    elif new_status == "read":
+        message.read_at = datetime.now(UTC)
+    elif new_status == "failed":
+        message.error_code = event.get("error_code")
+        message.error_message = event.get("error_message")
+
+    await db_session.commit()
+    logger.info(f"Updated message {wa_message_id} status to {new_status}")

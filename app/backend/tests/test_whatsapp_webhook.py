@@ -9,6 +9,7 @@ from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
 from src.db.models.whatsapp_account import WhatsAppAccount
+from src.db.models.whatsapp_message import MessageStatus, WhatsAppMessage
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 
 
@@ -304,3 +305,318 @@ async def test_webhook_rate_limit_enforced(client: AsyncClient):
     assert (
         "error" in response_data or "detail" in response_data
     ), "Error response should contain error details"
+
+
+# Status Update Persistence Tests (Issue #2)
+@pytest.mark.asyncio
+async def test_status_update_delivered_persisted(
+    client: AsyncClient, db_session: AsyncSession, whatsapp_account: WhatsAppAccount
+):
+    """Test that 'delivered' status update is persisted to database.
+
+    Tests Issue #2 fix: _handle_status_update should save status to WhatsAppMessage.
+    """
+
+    # Create test data
+    org = Organization(name="Test Org Status")
+    db_session.add(org)
+    await db_session.flush()
+
+    architect = Architect(
+        organization_id=org.id,
+        email="architect_status@test.com",
+        hashed_password="hashed",
+        phone="+5511888888888",
+        is_authorized=True,
+    )
+    db_session.add(architect)
+    await db_session.flush()
+
+    end_client = EndClient(
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Test Client Status",
+        phone="+5511777777777",
+    )
+    db_session.add(end_client)
+    await db_session.flush()
+
+    session = WhatsAppSession(
+        end_client_id=end_client.id,
+        phone_number="+5511777777777",
+        status=SessionStatus.ACTIVE.value,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    # Create outbound message (sent to client)
+    message = WhatsAppMessage(
+        session_id=session.id,
+        wa_message_id="wamid.status_test_123",
+        direction="outbound",
+        status=MessageStatus.SENT.value,
+        content={"text": {"body": "Test question"}},
+    )
+    db_session.add(message)
+    await db_session.commit()
+
+    # Send status update webhook
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "123456",
+                "changes": [
+                    {
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "+5511999999999",
+                                "phone_number_id": "test_phone_123",
+                            },
+                            "statuses": [
+                                {
+                                    "id": "wamid.status_test_123",
+                                    "status": "delivered",
+                                    "timestamp": "1234567890",
+                                    "recipient_id": "5511777777777",
+                                }
+                            ],
+                        },
+                        "field": "messages",
+                    }
+                ],
+            }
+        ],
+    }
+
+    response = await client.post("/api/webhooks/whatsapp", json=payload)
+    assert response.status_code == 200
+
+    # Verify status was persisted
+    await db_session.refresh(message)
+    assert message.status == MessageStatus.DELIVERED.value
+    assert message.delivered_at is not None
+    assert message.read_at is None  # Not read yet
+
+
+@pytest.mark.asyncio
+async def test_status_update_read_persisted(
+    client: AsyncClient, db_session: AsyncSession, whatsapp_account: WhatsAppAccount
+):
+    """Test that 'read' status update is persisted to database."""
+
+    # Create test data
+    org = Organization(name="Test Org Read")
+    db_session.add(org)
+    await db_session.flush()
+
+    architect = Architect(
+        organization_id=org.id,
+        email="architect_read@test.com",
+        hashed_password="hashed",
+        phone="+5511888888888",
+        is_authorized=True,
+    )
+    db_session.add(architect)
+    await db_session.flush()
+
+    end_client = EndClient(
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Test Client Read",
+        phone="+5511666666666",
+    )
+    db_session.add(end_client)
+    await db_session.flush()
+
+    session = WhatsAppSession(
+        end_client_id=end_client.id,
+        phone_number="+5511666666666",
+        status=SessionStatus.ACTIVE.value,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    message = WhatsAppMessage(
+        session_id=session.id,
+        wa_message_id="wamid.read_test_456",
+        direction="outbound",
+        status=MessageStatus.DELIVERED.value,
+        content={"text": {"body": "Test question"}},
+    )
+    db_session.add(message)
+    await db_session.commit()
+
+    # Send read status update
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "123456",
+                "changes": [
+                    {
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "+5511999999999",
+                                "phone_number_id": "test_phone_123",
+                            },
+                            "statuses": [
+                                {
+                                    "id": "wamid.read_test_456",
+                                    "status": "read",
+                                    "timestamp": "1234567890",
+                                    "recipient_id": "5511666666666",
+                                }
+                            ],
+                        },
+                        "field": "messages",
+                    }
+                ],
+            }
+        ],
+    }
+
+    response = await client.post("/api/webhooks/whatsapp", json=payload)
+    assert response.status_code == 200
+
+    # Verify read status was persisted
+    await db_session.refresh(message)
+    assert message.status == MessageStatus.READ.value
+    assert message.read_at is not None
+
+
+@pytest.mark.asyncio
+async def test_status_update_failed_persisted(
+    client: AsyncClient, db_session: AsyncSession, whatsapp_account: WhatsAppAccount
+):
+    """Test that 'failed' status update with error details is persisted."""
+
+    # Create test data
+    org = Organization(name="Test Org Failed")
+    db_session.add(org)
+    await db_session.flush()
+
+    architect = Architect(
+        organization_id=org.id,
+        email="architect_failed@test.com",
+        hashed_password="hashed",
+        phone="+5511888888888",
+        is_authorized=True,
+    )
+    db_session.add(architect)
+    await db_session.flush()
+
+    end_client = EndClient(
+        organization_id=org.id,
+        architect_id=architect.id,
+        name="Test Client Failed",
+        phone="+5511555555555",
+    )
+    db_session.add(end_client)
+    await db_session.flush()
+
+    session = WhatsAppSession(
+        end_client_id=end_client.id,
+        phone_number="+5511555555555",
+        status=SessionStatus.ACTIVE.value,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    message = WhatsAppMessage(
+        session_id=session.id,
+        wa_message_id="wamid.failed_test_789",
+        direction="outbound",
+        status=MessageStatus.SENT.value,
+        content={"text": {"body": "Test question"}},
+    )
+    db_session.add(message)
+    await db_session.commit()
+
+    # Send failed status update with error details
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "123456",
+                "changes": [
+                    {
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "+5511999999999",
+                                "phone_number_id": "test_phone_123",
+                            },
+                            "statuses": [
+                                {
+                                    "id": "wamid.failed_test_789",
+                                    "status": "failed",
+                                    "timestamp": "1234567890",
+                                    "recipient_id": "5511555555555",
+                                    "errors": [
+                                        {
+                                            "code": 131047,
+                                            "title": "Re-engagement message",
+                                            "message": "Re-engagement message was not delivered because more than 24 hours have passed since the customer last replied to this number.",
+                                        }
+                                    ],
+                                }
+                            ],
+                        },
+                        "field": "messages",
+                    }
+                ],
+            }
+        ],
+    }
+
+    response = await client.post("/api/webhooks/whatsapp", json=payload)
+    assert response.status_code == 200
+
+    # Verify failed status and error details were persisted
+    await db_session.refresh(message)
+    assert message.status == MessageStatus.FAILED.value
+    assert message.error_code == "131047"
+    assert "24 hours" in message.error_message
+
+
+@pytest.mark.asyncio
+async def test_status_update_message_not_found(
+    client: AsyncClient, db_session: AsyncSession, whatsapp_account: WhatsAppAccount
+):
+    """Test that status update for non-existent message doesn't crash (logs warning)."""
+    # Send status update for message that doesn't exist in DB
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "123456",
+                "changes": [
+                    {
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "+5511999999999",
+                                "phone_number_id": "test_phone_123",
+                            },
+                            "statuses": [
+                                {
+                                    "id": "wamid.nonexistent_999",
+                                    "status": "delivered",
+                                    "timestamp": "1234567890",
+                                    "recipient_id": "5511000000000",
+                                }
+                            ],
+                        },
+                        "field": "messages",
+                    }
+                ],
+            }
+        ],
+    }
+
+    # Should return 200 and log warning, not crash
+    response = await client.post("/api/webhooks/whatsapp", json=payload)
+    assert response.status_code == 200

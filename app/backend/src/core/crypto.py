@@ -34,7 +34,7 @@ def get_cipher() -> Fernet:
     try:
         return Fernet(encryption_key.encode())
     except Exception as e:
-        raise ValueError(f"Invalid ENCRYPTION_KEY format: {e}")
+        raise ValueError(f"Invalid ENCRYPTION_KEY format: {e}") from e
 
 
 def encrypt_token(token: str) -> str:
@@ -89,4 +89,4 @@ def decrypt_token(encrypted_token: str) -> str:
         decrypted_bytes = cipher.decrypt(encrypted_token.encode())
         return decrypted_bytes.decode()
     except Exception as e:
-        raise ValueError(f"Failed to decrypt token: {e}")
+        raise ValueError(f"Failed to decrypt token: {e}") from e

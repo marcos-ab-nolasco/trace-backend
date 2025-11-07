@@ -5,9 +5,9 @@ preventing cross-tenant data leakage (critical for GDPR compliance).
 """
 
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Annotated, Any
+from typing import Annotated, ParamSpec, TypeVar
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -18,9 +18,13 @@ from src.core.dependencies import get_current_architect
 from src.db.models.architect import Architect
 
 logger = logging.getLogger(__name__)
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
-def require_organization_access(param_name: str = "architect_id"):
+def require_organization_access(
+    param_name: str = "architect_id",
+) -> Callable[[Callable[P, Awaitable[R]]], Callable[P, Awaitable[R]]]:
     """Decorator to enforce organization isolation on endpoints.
 
     This decorator verifies that the authenticated architect can only access resources
@@ -45,9 +49,9 @@ def require_organization_access(param_name: str = "architect_id"):
         HTTPException: 403 Forbidden if architect tries to access another organization's resources.
     """
 
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+    def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @wraps(func)
-        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
             # Extract dependencies from kwargs
             current_architect: Architect | None = kwargs.get("current_architect")
             db_session: AsyncSession | None = kwargs.get("db_session")

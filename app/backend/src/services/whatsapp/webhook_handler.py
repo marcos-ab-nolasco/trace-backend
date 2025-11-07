@@ -160,6 +160,12 @@ class WebhookHandler:
             if errors:
                 error = errors[0]  # Take first error
                 result["error_code"] = str(error.get("code", ""))
-                result["error_message"] = error.get("title", "Unknown error")
+                # Combine title and message for full error context
+                title = error.get("title", "")
+                message = error.get("message", "")
+                if title and message:
+                    result["error_message"] = f"{title}: {message}"
+                else:
+                    result["error_message"] = title or message or "Unknown error"
 
         return result

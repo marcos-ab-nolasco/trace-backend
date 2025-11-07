@@ -1,4 +1,6 @@
 import logging
+from collections.abc import Awaitable
+from typing import cast
 
 # import time
 from fastapi import FastAPI  # , Request
@@ -97,7 +99,7 @@ async def health_check(
 
         try:
             redis_client = get_redis_client()
-            await redis_client.ping()
+            await cast(Awaitable[bool], redis_client.ping())
             result["redis"] = "connected"
         except Exception as e:
             result["status"] = "unhealthy"

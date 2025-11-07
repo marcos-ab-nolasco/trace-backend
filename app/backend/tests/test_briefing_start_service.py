@@ -286,7 +286,7 @@ async def test_concurrent_briefing_creation_race_condition(
     try:
         await db_session.commit()
         # If we reach here, constraint is not working - fail test explicitly
-        assert False, "Expected IntegrityError but commit succeeded"
+        raise AssertionError("Expected IntegrityError but commit succeeded")
     except IntegrityError as e:
         # Expected - verify it's the unique constraint violation
         assert "uq_client_active_briefing" in str(e).lower(), f"Expected constraint error, got: {e}"
