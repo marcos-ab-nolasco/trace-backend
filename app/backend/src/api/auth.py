@@ -17,6 +17,7 @@ from src.core.auth.session import (
     set_refresh_cookie,
 )
 from src.core.config import get_settings
+from src.core.crypto import encrypt_token
 from src.core.dependencies import get_current_architect
 from src.core.rate_limit import limiter
 from src.core.security import create_access_token, hash_password, verify_password
@@ -56,7 +57,14 @@ async def register(
 
     try:
         # Create organization first so we can assign architect to it
-        organization = Organization(name=architect_data.organization_name)
+        organization = Organization(
+            name=architect_data.organization_name,
+            settings={
+                "access_token": encrypt_token(
+                    get_settings().WHATSAPP_ACCESS_TOKEN.get_secret_value()
+                )
+            },
+        )
         db.add(organization)
         await db.flush()
 

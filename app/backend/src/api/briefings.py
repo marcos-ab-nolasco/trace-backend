@@ -1,27 +1,41 @@
 """API endpoints for briefing management and WhatsApp integration."""
 
 import logging
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from src.core.dependencies import get_current_architect
 from src.core.organization_access import require_organization_access
 from src.db.models.architect import Architect
-from src.db.models.briefing import Briefing
+from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.conversation import Conversation, ConversationType
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
+from src.db.models.template_version import TemplateVersion
 from src.db.session import get_db_session
-from src.schemas.briefing import ExtractedClientInfo, StartBriefingRequest, StartBriefingResponse
+from src.schemas.briefing import (
+    AnalyticsMetrics,
+    AnalyticsResponse,
+    BriefingDetailRead,
+    BriefingListResponse,
+    CancelBriefingRequest,
+    ExtractedClientInfo,
+    StartBriefingRequest,
+    StartBriefingResponse,
+)
 from src.services.ai import get_ai_service
+from src.services.briefing.analytics_service import AnalyticsService
 from src.services.briefing.extraction_service import ExtractionService
 from src.services.briefing.orchestrator import BriefingOrchestrator
 from src.services.briefing.phone_utils import normalize_phone
 from src.services.template_service import TemplateService
+from src.services.whatsapp.whatsapp_account_service import WhatsAppAccountService
 from src.services.whatsapp.whatsapp_service import WhatsAppService
 
 logger = logging.getLogger(__name__)
@@ -120,7 +134,7 @@ async def start_briefing_from_whatsapp(
         first_question = first_question_data["question"]
 
         # Step 9: Get WhatsApp service and send first question
-        whatsapp_service = _get_whatsapp_service(organization)
+        whatsapp_service = await _get_whatsapp_service(organization.id, db_session)
         whatsapp_result = await whatsapp_service.send_text_message(
             to=normalized_phone,
             text=first_question,
@@ -191,6 +205,361 @@ async def start_briefing_from_whatsapp(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start briefing: {str(e)}",
         ) from e
+
+
+# CRUD API Endpoints
+
+
+@router.get("", response_model=BriefingListResponse)
+async def list_briefings(
+    status_filter: BriefingStatus | None = Query(None, alias="status"),
+    end_client_id: UUID | None = Query(None),
+    template_id: UUID | None = Query(None),
+    created_after: datetime | None = Query(None),
+    created_before: datetime | None = Query(None),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_architect: Architect = Depends(get_current_architect),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> BriefingListResponse:
+    """
+    List briefings for the current architect's organization with optional filters.
+
+    Filters:
+    - status: Filter by briefing status (in_progress, completed, cancelled)
+    - end_client_id: Filter by specific end client
+    - template_id: Filter by template (any version of that template)
+    - created_after: Filter by creation date (inclusive)
+    - created_before: Filter by creation date (inclusive)
+
+    Pagination:
+    - limit: Number of results (1-100, default 20)
+    - offset: Number of results to skip (default 0)
+    """
+    logger.info(
+        f"Listing briefings for organization {current_architect.organization_id}",
+        extra={
+            "organization_id": str(current_architect.organization_id),
+            "filters": {
+                "status": status_filter.value if status_filter else None,
+                "end_client_id": str(end_client_id) if end_client_id else None,
+                "template_id": str(template_id) if template_id else None,
+            },
+        },
+    )
+
+    # Build query with organization isolation
+    query = (
+        select(Briefing)
+        .join(EndClient, Briefing.end_client_id == EndClient.id)
+        .where(EndClient.organization_id == current_architect.organization_id)
+        .options(
+            selectinload(Briefing.end_client),
+            selectinload(Briefing.template_version),
+        )
+    )
+
+    # Apply filters
+    if status_filter:
+        query = query.where(Briefing.status == status_filter)
+
+    if end_client_id:
+        query = query.where(Briefing.end_client_id == end_client_id)
+
+    if template_id:
+        # Filter by template_id (any version of that template)
+        query = query.join(
+            TemplateVersion, Briefing.template_version_id == TemplateVersion.id
+        ).where(TemplateVersion.template_id == template_id)
+
+    if created_after:
+        query = query.where(Briefing.created_at >= created_after)
+
+    if created_before:
+        query = query.where(Briefing.created_at <= created_before)
+
+    # Get total count (before pagination)
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db_session.execute(count_query)
+    total = total_result.scalar_one()
+
+    # Apply pagination and ordering
+    query = query.order_by(Briefing.created_at.desc()).limit(limit).offset(offset)
+
+    # Execute query
+    result = await db_session.execute(query)
+    briefings = result.scalars().all()
+
+    return BriefingListResponse(
+        items=briefings,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/{briefing_id}", response_model=BriefingDetailRead)
+async def get_briefing(
+    briefing_id: UUID,
+    current_architect: Architect = Depends(get_current_architect),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> BriefingDetailRead:
+    """
+    Get detailed information about a specific briefing.
+
+    Includes:
+    - Briefing status and progress
+    - End client information
+    - Template version details
+    - All answers provided so far
+    """
+    logger.info(
+        f"Getting briefing {briefing_id}",
+        extra={"briefing_id": str(briefing_id)},
+    )
+
+    # Query with organization isolation
+    query = (
+        select(Briefing)
+        .join(EndClient, Briefing.end_client_id == EndClient.id)
+        .where(
+            Briefing.id == briefing_id,
+            EndClient.organization_id == current_architect.organization_id,
+        )
+        .options(
+            selectinload(Briefing.end_client),
+            selectinload(Briefing.template_version),
+        )
+    )
+
+    result = await db_session.execute(query)
+    briefing = result.scalar_one_or_none()
+
+    if not briefing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Briefing not found",
+        )
+
+    return briefing
+
+
+@router.post("/{briefing_id}/complete", status_code=status.HTTP_200_OK)
+async def complete_briefing(
+    briefing_id: UUID,
+    current_architect: Architect = Depends(get_current_architect),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """
+    Manually complete a briefing.
+
+    This endpoint allows manually marking a briefing as complete,
+    which will:
+    1. Update status to COMPLETED
+    2. Set completed_at timestamp
+    3. Generate analytics metrics
+
+    Only IN_PROGRESS briefings can be completed.
+    """
+    logger.info(
+        f"Completing briefing {briefing_id}",
+        extra={"briefing_id": str(briefing_id)},
+    )
+
+    # Verify briefing exists and belongs to organization
+    query = (
+        select(Briefing)
+        .join(EndClient, Briefing.end_client_id == EndClient.id)
+        .where(
+            Briefing.id == briefing_id,
+            EndClient.organization_id == current_architect.organization_id,
+        )
+    )
+
+    result = await db_session.execute(query)
+    briefing = result.scalar_one_or_none()
+
+    if not briefing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Briefing not found",
+        )
+
+    # Check if briefing is in progress
+    if briefing.status != BriefingStatus.IN_PROGRESS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot complete briefing with status {briefing.status.value}",
+        )
+
+    # Complete briefing using orchestrator
+    orchestrator = BriefingOrchestrator(db_session)
+    try:
+        await orchestrator.complete_briefing(briefing_id)
+    except ValueError as e:
+        # Handle validation errors (e.g., missing required answers, template issues)
+        logger.warning(f"Cannot complete briefing {briefing_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot complete briefing: {str(e)}",
+        ) from e
+
+    await db_session.commit()
+
+    logger.info(f"Briefing {briefing_id} completed successfully")
+
+    return {
+        "success": True,
+        "message": "Briefing completed successfully",
+        "briefing_id": str(briefing_id),
+    }
+
+
+@router.post("/{briefing_id}/cancel", status_code=status.HTTP_200_OK)
+async def cancel_briefing(
+    briefing_id: UUID,
+    request: CancelBriefingRequest,
+    current_architect: Architect = Depends(get_current_architect),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """
+    Cancel a briefing.
+
+    This endpoint allows cancelling a briefing with an optional reason.
+    The briefing status will be set to CANCELLED.
+
+    This operation is idempotent - cancelling an already cancelled briefing
+    will succeed.
+    """
+    logger.info(
+        f"Cancelling briefing {briefing_id}",
+        extra={
+            "briefing_id": str(briefing_id),
+            "reason": request.reason,
+        },
+    )
+
+    # Verify briefing exists and belongs to organization
+    query = (
+        select(Briefing)
+        .join(EndClient, Briefing.end_client_id == EndClient.id)
+        .where(
+            Briefing.id == briefing_id,
+            EndClient.organization_id == current_architect.organization_id,
+        )
+    )
+
+    result = await db_session.execute(query)
+    briefing = result.scalar_one_or_none()
+
+    if not briefing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Briefing not found",
+        )
+
+    # Idempotent: if already cancelled, return success
+    if briefing.status == BriefingStatus.CANCELLED:
+        logger.info(f"Briefing {briefing_id} already cancelled")
+        return {
+            "success": True,
+            "message": "Briefing already cancelled",
+            "briefing_id": str(briefing_id),
+        }
+
+    # Cannot cancel completed briefings
+    if briefing.status == BriefingStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot cancel a completed briefing",
+        )
+
+    # Cancel briefing using orchestrator
+    orchestrator = BriefingOrchestrator(db_session)
+    await orchestrator.cancel_briefing(briefing_id)
+
+    await db_session.commit()
+
+    logger.info(f"Briefing {briefing_id} cancelled successfully")
+
+    return {
+        "success": True,
+        "message": "Briefing cancelled successfully",
+        "briefing_id": str(briefing_id),
+        "reason": request.reason,
+    }
+
+
+@router.get("/{briefing_id}/analytics", response_model=AnalyticsResponse)
+async def get_briefing_analytics(
+    briefing_id: UUID,
+    current_architect: Architect = Depends(get_current_architect),
+    db_session: AsyncSession = Depends(get_db_session),
+) -> AnalyticsResponse:
+    """
+    Get analytics for a completed briefing.
+
+    Analytics are only available for COMPLETED briefings.
+    The analytics are automatically generated when a briefing is completed.
+
+    Metrics include:
+    - Duration in seconds
+    - Total questions
+    - Answered questions (required/optional breakdown)
+    - Completion rate
+    - Optional observations
+    """
+    logger.info(
+        f"Getting analytics for briefing {briefing_id}",
+        extra={"briefing_id": str(briefing_id)},
+    )
+
+    # Verify briefing exists and belongs to organization
+    query = (
+        select(Briefing)
+        .join(EndClient, Briefing.end_client_id == EndClient.id)
+        .where(
+            Briefing.id == briefing_id,
+            EndClient.organization_id == current_architect.organization_id,
+        )
+    )
+
+    result = await db_session.execute(query)
+    briefing = result.scalar_one_or_none()
+
+    if not briefing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Briefing not found",
+        )
+
+    # Check if briefing is completed
+    if briefing.status != BriefingStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Analytics are only available for completed briefings",
+        )
+
+    # Get analytics using service
+    analytics_service = AnalyticsService(db_session)
+    analytics = await analytics_service.get_analytics(briefing_id)
+
+    if not analytics:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Analytics not found for this briefing",
+        )
+
+    # Parse metrics into schema
+    metrics = AnalyticsMetrics(**analytics.metrics)
+
+    return AnalyticsResponse(
+        id=analytics.id,
+        briefing_id=analytics.briefing_id,
+        metrics=metrics,
+        observations=analytics.observations,
+        created_at=analytics.created_at,
+    )
 
 
 # Helper functions
@@ -296,21 +665,23 @@ async def _create_or_update_client(
         ) from e
 
 
-def _get_whatsapp_service(organization: Organization) -> WhatsAppService:
-    """Get WhatsApp service from organization settings."""
-    settings = organization.settings or {}
-    phone_number_id = settings.get("phone_number_id")
-    access_token = settings.get("access_token")
+async def _get_whatsapp_service(
+    organization_id: UUID,
+    db_session: AsyncSession,
+) -> WhatsAppService:
+    """Get WhatsApp service from organization settings (with decrypted token)."""
+    account_service = WhatsAppAccountService(db_session)
+    config = await account_service.get_account_config(organization_id)
 
-    if not phone_number_id or not access_token:
+    if not config:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="WhatsApp não configurado para esta organização.",
         )
 
     return WhatsAppService(
-        phone_number_id=phone_number_id,
-        access_token=access_token,
+        phone_number_id=config.phone_number_id,
+        access_token=config.access_token,  # Already decrypted by WhatsAppAccountService
     )
 
 

@@ -16,6 +16,8 @@ from src.db.models.template_version import TemplateVersion
 from src.db.models.whatsapp_message import MessageDirection, MessageStatus, WhatsAppMessage
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 
+TEST_TOKEN = "gAAAAABpD5SBKMMw3egsVRJ7IWR3jtj5PzRnMyifxeXyWCJmg0gtErDSpZHZOH09gSgvalFlmre05W-8JcMdAswaN7E3zZvifw=="
+
 
 # Test-specific fixtures
 @pytest.fixture
@@ -26,7 +28,7 @@ async def test_org_with_whatsapp(
     test_organization.whatsapp_business_account_id = "123456789"
     test_organization.settings = {
         "phone_number_id": "test_phone_id",
-        "access_token": "test_token",
+        "access_token": TEST_TOKEN,
     }
     db_session.add(test_organization)
     await db_session.commit()

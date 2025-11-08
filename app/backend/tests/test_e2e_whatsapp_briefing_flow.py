@@ -14,6 +14,8 @@ from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 
+TEST_TOKEN_ABC = "gAAAAABpD51IfAJp9XpUYWHmCx0gMDsRH0khVM99XovlHDcjkQLVr77FZ0Xsqm7rfgDNVW2edr4UnGTBzcvF7bVgJ9ptkKvJyg=="
+
 
 @pytest.mark.asyncio
 async def test_e2e_complete_briefing_flow_from_authorized_phone(
@@ -27,7 +29,7 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
     # Setup: Add WhatsApp settings to organization
     test_organization.settings = {
         "phone_number_id": "test_phone_123",
-        "access_token": "test_token_abc",
+        "access_token": TEST_TOKEN_ABC,
     }
     db_session.add(test_organization)
 
@@ -249,7 +251,7 @@ async def test_e2e_extraction_failure_sends_error_to_architect(
     # Setup
     test_organization.settings = {
         "phone_number_id": "test_phone_123",
-        "access_token": "test_token_abc",
+        "access_token": TEST_TOKEN_ABC,
     }
     db_session.add(test_organization)
 
@@ -342,7 +344,7 @@ async def test_e2e_duplicate_briefing_blocked(
     # Setup
     test_organization.settings = {
         "phone_number_id": "test_phone_123",
-        "access_token": "test_token_abc",
+        "access_token": TEST_TOKEN_ABC,
     }
     db_session.add(test_organization)
 

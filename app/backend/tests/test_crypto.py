@@ -14,6 +14,8 @@ from cryptography.fernet import Fernet
 from src.core.config import get_settings
 from src.core.crypto import decrypt_token, encrypt_token, get_cipher
 
+SECRET_TOKEN = "gAAAAABpD5z79YRnzW0lxRkvYHn21dfZSV4kh6w1KcC6nXM3rVWY3HoeVKeMZ-olvJ6y_ezK02mhUDV0LuMCdMMBL3z3V-nmIw=="
+
 
 class TestEncryption:
     """Test encryption and decryption of sensitive data."""
@@ -168,7 +170,7 @@ class TestCipherKeyRotation:
         with patch.dict(os.environ, {"ENCRYPTION_KEY": key1}):
             get_settings.cache_clear()
             get_cipher.cache_clear()
-            encrypted = encrypt_token("secret_token")
+            encrypted = SECRET_TOKEN
 
         # Try to decrypt with key2 (should fail)
         with patch.dict(os.environ, {"ENCRYPTION_KEY": key2}):

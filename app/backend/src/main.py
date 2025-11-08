@@ -61,7 +61,6 @@ app.include_router(whatsapp_webhook.router)
 async def health_check(
     check_db: bool = False,
     check_redis: bool = False,
-    check_whatsapp: bool = False,
     check_ai: bool = False,
 ) -> dict[str, str | bool]:
     """Health check endpoint to verify API is running.
@@ -106,15 +105,6 @@ async def health_check(
             result["redis"] = "disconnected"
             if "error" not in result:
                 result["error"] = str(e)
-
-    # Check WhatsApp API availability
-    if check_whatsapp:
-        # Lightweight check - just verify if credentials are configured
-        # Full API check would require actual API call which may fail in test env
-        if settings.WHATSAPP_ACCESS_TOKEN and settings.WHATSAPP_PHONE_NUMBER_ID:
-            result["whatsapp"] = "connected"
-        else:
-            result["whatsapp"] = "not_configured"
 
     # Check AI providers availability
     if check_ai:

@@ -83,11 +83,7 @@ class WhatsAppAccountService:
 
         # Fall back to global settings
         global_phone_id = get_settings().WHATSAPP_PHONE_NUMBER_ID
-        global_access_token = (
-            get_settings().WHATSAPP_ACCESS_TOKEN.get_secret_value()
-            if get_settings().WHATSAPP_ACCESS_TOKEN
-            else None
-        )
+        global_access_token = get_settings().WHATSAPP_ACCESS_TOKEN.get_secret_value()
 
         if global_phone_id and global_access_token:
             return WhatsAppAccountConfig(

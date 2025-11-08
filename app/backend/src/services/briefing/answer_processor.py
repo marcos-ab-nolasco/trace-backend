@@ -16,6 +16,7 @@ from src.db.models.template_version import TemplateVersion
 from src.db.models.whatsapp_message import MessageDirection, MessageStatus, WhatsAppMessage
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 from src.services.briefing.orchestrator import BriefingOrchestrator
+from src.services.whatsapp.whatsapp_account_service import WhatsAppAccountService
 from src.services.whatsapp.whatsapp_service import WhatsAppService
 
 logger = logging.getLogger(__name__)
@@ -303,22 +304,22 @@ class AnswerProcessorService:
         )
         organization = result.scalar_one_or_none()
 
-        if not organization or not organization.settings:
-            logger.error(f"Organization or settings not found for client {client.id}")
+        if not organization:
+            logger.error(f"Organization not found for client {client.id}")
             return
 
-        settings = organization.settings
-        wa_phone_number_id = settings.get("phone_number_id")
-        access_token = settings.get("access_token")
+        # Get WhatsApp config with decrypted token
+        account_service = WhatsAppAccountService(self.db_session)
+        config = await account_service.get_account_config(organization.id)
 
-        if not wa_phone_number_id or not access_token:
+        if not config:
             logger.error("WhatsApp credentials not configured")
             return
 
         # Send message
         whatsapp_service = WhatsAppService(
-            phone_number_id=wa_phone_number_id,
-            access_token=access_token,
+            phone_number_id=config.phone_number_id,
+            access_token=config.access_token,  # Already decrypted
         )
 
         result = await whatsapp_service.send_text_message(
@@ -352,13 +353,19 @@ class AnswerProcessorService:
         )
         organization = result.scalar_one_or_none()
 
-        if not organization or not organization.settings:
+        if not organization:
             return
 
-        settings = organization.settings
+        # Get WhatsApp config with decrypted token
+        account_service = WhatsAppAccountService(self.db_session)
+        config = await account_service.get_account_config(organization.id)
+
+        if not config:
+            return
+
         whatsapp_service = WhatsAppService(
-            phone_number_id=settings.get("phone_number_id"),
-            access_token=settings.get("access_token"),
+            phone_number_id=config.phone_number_id,
+            access_token=config.access_token,  # Already decrypted
         )
 
         await whatsapp_service.send_text_message(
@@ -387,13 +394,19 @@ class AnswerProcessorService:
         )
         organization = result.scalar_one_or_none()
 
-        if not organization or not organization.settings:
+        if not organization:
             return
 
-        settings = organization.settings
+        # Get WhatsApp config with decrypted token
+        account_service = WhatsAppAccountService(self.db_session)
+        config = await account_service.get_account_config(organization.id)
+
+        if not config:
+            return
+
         whatsapp_service = WhatsAppService(
-            phone_number_id=settings.get("phone_number_id"),
-            access_token=settings.get("access_token"),
+            phone_number_id=config.phone_number_id,
+            access_token=config.access_token,  # Already decrypted
         )
 
         await whatsapp_service.send_text_message(

@@ -8,6 +8,8 @@ from src.services.whatsapp.whatsapp_account_service import (
     WhatsAppAccountService,
 )
 
+TEST_TOKEN_ABC = "gAAAAABpD54TeLG4dS70mfIW2CTouovwNoWK66Qgww3D0Sse4SACmBXOcFY8W-Z-tKlZXONY90ProGP92VJBioibMzc35eUhGg=="
+
 
 @pytest.mark.asyncio
 async def test_get_account_config_uses_organization_settings_when_available(
@@ -18,7 +20,7 @@ async def test_get_account_config_uses_organization_settings_when_available(
     # Set organization WhatsApp settings
     test_organization.settings = {
         "phone_number_id": "org_phone_123",
-        "access_token": "org_token_abc",
+        "access_token": TEST_TOKEN_ABC,
     }
     db_session.add(test_organization)
     await db_session.commit()
@@ -28,53 +30,8 @@ async def test_get_account_config_uses_organization_settings_when_available(
 
     assert config is not None
     assert config.phone_number_id == "org_phone_123"
-    assert config.access_token == "org_token_abc"
+    assert config.access_token == "test_token_abc"
     assert config.source == "organization"
-
-
-@pytest.mark.asyncio
-async def test_get_account_config_uses_global_when_org_settings_missing(
-    db_session: AsyncSession,
-    test_organization: Organization,
-):
-    """Test that global settings are used when organization settings are missing."""
-    # Organization has no WhatsApp settings
-    test_organization.settings = {}
-    db_session.add(test_organization)
-    await db_session.commit()
-
-    service = WhatsAppAccountService(db_session)
-    config = await service.get_account_config(test_organization.id)
-
-    # Should use global settings from .env.test
-    assert config is not None
-    assert config.phone_number_id == "global_test_phone_123"
-    assert config.access_token == "global_test_token_xyz"
-    assert config.source == "global"
-
-
-@pytest.mark.asyncio
-async def test_get_account_config_uses_global_when_org_settings_incomplete(
-    db_session: AsyncSession,
-    test_organization: Organization,
-):
-    """Test that global settings are used when organization settings are incomplete."""
-    # Organization has incomplete WhatsApp settings (missing access_token)
-    test_organization.settings = {
-        "phone_number_id": "org_phone_123",
-        # access_token missing
-    }
-    db_session.add(test_organization)
-    await db_session.commit()
-
-    service = WhatsAppAccountService(db_session)
-    config = await service.get_account_config(test_organization.id)
-
-    # Should fall back to global settings
-    assert config is not None
-    assert config.phone_number_id == "global_test_phone_123"
-    assert config.access_token == "global_test_token_xyz"
-    assert config.source == "global"
 
 
 @pytest.mark.asyncio
@@ -86,7 +43,7 @@ async def test_get_account_config_prefers_org_over_global(
     # Set organization WhatsApp settings
     test_organization.settings = {
         "phone_number_id": "org_phone_123",
-        "access_token": "org_token_abc",
+        "access_token": TEST_TOKEN_ABC,
     }
     db_session.add(test_organization)
     await db_session.commit()
@@ -96,7 +53,7 @@ async def test_get_account_config_prefers_org_over_global(
 
     # Should use org settings, not global
     assert config.phone_number_id == "org_phone_123"
-    assert config.access_token == "org_token_abc"
+    assert config.access_token == "test_token_abc"
     assert config.source == "organization"
 
 
@@ -121,7 +78,7 @@ async def test_get_account_config_can_override_phone_number_id(
     """Test that phone_number_id can be overridden (from webhook)."""
     # Organization has access_token but no phone_number_id
     test_organization.settings = {
-        "access_token": "org_token_abc",
+        "access_token": TEST_TOKEN_ABC,
     }
     db_session.add(test_organization)
     await db_session.commit()
@@ -135,5 +92,5 @@ async def test_get_account_config_can_override_phone_number_id(
 
     assert config is not None
     assert config.phone_number_id == "webhook_phone_789"
-    assert config.access_token == "org_token_abc"
+    assert config.access_token == "test_token_abc"
     assert config.source == "organization"

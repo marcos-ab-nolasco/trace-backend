@@ -58,21 +58,6 @@ async def test_health_check_redis_failure(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_health_check_with_whatsapp(client: AsyncClient):
-    """Test health check with WhatsApp API connectivity check (Issue #6).
-
-    WhatsApp check is lightweight - just verifies API is reachable.
-    Note: This test doesn't require actual WhatsApp credentials in test env.
-    """
-    response = await client.get("/health_check?check_whatsapp=true")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "healthy"
-    assert data["whatsapp"] in ["connected", "not_configured"]
-
-
-@pytest.mark.asyncio
 async def test_health_check_with_ai(client: AsyncClient):
     """Test health check with AI provider connectivity check (Issue #6).
 
@@ -100,7 +85,6 @@ async def test_health_check_all_checks(client: AsyncClient):
     assert data["status"] in ["healthy", "unhealthy"]
     assert "database" in data
     assert "redis" in data
-    assert "whatsapp" in data
     assert "ai" in data
     # If unhealthy, there should be an error
     if data["status"] == "unhealthy":

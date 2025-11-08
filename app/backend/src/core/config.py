@@ -37,8 +37,8 @@ class Settings(BaseSettings):
 
     # WhatsApp Business Cloud API
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: SecretStr | None = None
-    WHATSAPP_PHONE_NUMBER_ID: str | None = None
-    WHATSAPP_ACCESS_TOKEN: SecretStr | None = None
+    WHATSAPP_PHONE_NUMBER_ID: str
+    WHATSAPP_ACCESS_TOKEN: SecretStr
 
     # Rate Limiting
     RATE_LIMIT_WEBHOOK: str = "100/minute"  # Webhook POST endpoint limit
