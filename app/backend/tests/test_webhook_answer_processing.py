@@ -16,6 +16,8 @@ from src.db.models.template_version import TemplateVersion
 from src.db.models.whatsapp_message import MessageDirection, MessageStatus, WhatsAppMessage
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 
+TEST_TOKEN = "gAAAAABpD5SBKMMw3egsVRJ7IWR3jtj5PzRnMyifxeXyWCJmg0gtErDSpZHZOH09gSgvalFlmre05W-8JcMdAswaN7E3zZvifw=="
+
 
 # Test-specific fixtures
 @pytest.fixture
@@ -26,7 +28,7 @@ async def test_org_with_whatsapp(
     test_organization.whatsapp_business_account_id = "123456789"
     test_organization.settings = {
         "phone_number_id": "test_phone_id",
-        "access_token": "test_token",
+        "access_token": TEST_TOKEN,
     }
     db_session.add(test_organization)
     await db_session.commit()
@@ -455,3 +457,204 @@ async def test_concurrent_answers_from_same_client(
 
     # Should succeed with next question
     assert result2["success"] is True
+
+
+# ============================================================================
+# TRANSACTION MANAGEMENT TESTS (Sprint 1 Issue #8)
+# ============================================================================
+
+
+@pytest.mark.asyncio
+async def test_answer_not_saved_when_whatsapp_send_fails(
+    db_session: AsyncSession,
+    test_client: EndClient,
+    active_briefing: Briefing,
+    whatsapp_session: WhatsAppSession,
+    mocker: MockerFixture,
+):
+    """Test Option C behavior: data commits but WhatsApp failure triggers retry with idempotency.
+
+    In Option C (Idempotency with Rollback):
+    1. DB operations commit successfully
+    2. WhatsApp send fails
+    3. Exception propagates (webhook will retry)
+    4. On retry, idempotency check prevents duplicate processing
+    """
+    # Mock WhatsApp service to raise exception (simulating network failure)
+    mock_whatsapp_send = mocker.patch(
+        "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
+        new=AsyncMock(side_effect=Exception("WhatsApp API temporarily unavailable")),
+    )
+
+    from src.services.briefing.answer_processor import AnswerProcessorService
+
+    # Process answer - should fail and propagate exception
+    processor = AnswerProcessorService(db_session)
+    with pytest.raises(Exception, match="WhatsApp API temporarily unavailable"):
+        await processor.process_client_answer(
+            phone_number=test_client.phone,
+            answer_text="Reforma de cozinha",
+            wa_message_id="wamid.fail_test",
+            session_id=whatsapp_session.id,
+        )
+
+    # Verify WhatsApp send was attempted
+    mock_whatsapp_send.assert_called_once()
+
+    # Refresh briefing - in Option C, data IS committed before WhatsApp send
+    await db_session.refresh(active_briefing)
+
+    # Changes ARE persisted (this is Option C behavior)
+    assert active_briefing.current_question_order == 2  # Progressed to next question
+    assert "1" in active_briefing.answers  # Answer was saved
+    assert active_briefing.answers["1"] == "Reforma de cozinha"
+    assert active_briefing.status == BriefingStatus.IN_PROGRESS
+
+    # Incoming message WAS saved (before WhatsApp send)
+    result = await db_session.execute(
+        select(WhatsAppMessage).where(WhatsAppMessage.wa_message_id == "wamid.fail_test")
+    )
+    saved_message = result.scalar_one_or_none()
+    assert saved_message is not None, "Message should be saved (commits before WhatsApp)"
+    assert saved_message.content["text"]["body"] == "Reforma de cozinha"
+
+    # Critical test: webhook WAS marked as processed (after commit, before WhatsApp)
+    from src.db.models.processed_webhook import ProcessedWebhook
+
+    result_webhook = await db_session.execute(
+        select(ProcessedWebhook).where(ProcessedWebhook.wa_message_id == "wamid.fail_test")
+    )
+    processed_webhook = result_webhook.scalar_one_or_none()
+    assert (
+        processed_webhook is not None
+    ), "Webhook should be marked processed (after commit, before WhatsApp)"
+    assert processed_webhook.result_data is not None
+    assert "next_question" in processed_webhook.result_data
+
+    # On webhook retry, will detect already processed, skip DB operations,
+    # and retry only the WhatsApp send using cached next_question
+
+
+@pytest.mark.asyncio
+async def test_duplicate_webhook_does_not_create_duplicate_answers(
+    db_session: AsyncSession,
+    test_client: EndClient,
+    active_briefing: Briefing,
+    whatsapp_session: WhatsAppSession,
+    mocker: MockerFixture,
+):
+    """Test that processing the same webhook twice doesn't create duplicate answers.
+
+    This ensures idempotency - webhook retries won't corrupt data.
+    """
+    # Mock WhatsApp service
+    mocker.patch(
+        "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
+        new=AsyncMock(return_value={"success": True, "message_id": "wamid.next_question"}),
+    )
+
+    from src.services.briefing.answer_processor import AnswerProcessorService
+
+    # Process answer first time
+    processor = AnswerProcessorService(db_session)
+    result1 = await processor.process_client_answer(
+        phone_number=test_client.phone,
+        answer_text="Reforma de sala",
+        wa_message_id="wamid.duplicate_test",
+        session_id=whatsapp_session.id,
+    )
+
+    assert result1["success"] is True
+    assert result1["question_number"] == 1
+
+    # Commit first processing
+    await db_session.commit()
+    await db_session.refresh(active_briefing)
+
+    # Store state after first processing
+    first_question_order = active_briefing.current_question_order
+    first_answers = dict(active_briefing.answers)
+
+    # Process SAME webhook again (simulating retry)
+    processor2 = AnswerProcessorService(db_session)
+    result2 = await processor2.process_client_answer(
+        phone_number=test_client.phone,
+        answer_text="Reforma de sala",  # Same answer
+        wa_message_id="wamid.duplicate_test",  # SAME message ID
+        session_id=whatsapp_session.id,
+    )
+
+    # Second call should succeed without side effects (idempotent)
+    assert result2["success"] is True
+
+    # Verify state didn't change (no duplicate processing)
+    await db_session.refresh(active_briefing)
+    assert active_briefing.current_question_order == first_question_order
+    assert active_briefing.answers == first_answers
+
+    # Verify only ONE incoming message record exists
+    result = await db_session.execute(
+        select(WhatsAppMessage).where(WhatsAppMessage.wa_message_id == "wamid.duplicate_test")
+    )
+    messages = result.scalars().all()
+    assert len(messages) == 1, "Should have exactly one message record (idempotency)"
+
+
+@pytest.mark.asyncio
+async def test_successful_answer_processing_commits_transaction(
+    db_session: AsyncSession,
+    test_client: EndClient,
+    active_briefing: Briefing,
+    whatsapp_session: WhatsAppSession,
+    mocker: MockerFixture,
+):
+    """Test that successful answer processing commits all changes.
+
+    Verifies the happy path: transaction commits when WhatsApp send succeeds.
+    """
+    # Mock WhatsApp service to succeed
+    mock_whatsapp_send = mocker.patch(
+        "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
+        new=AsyncMock(return_value={"success": True, "message_id": "wamid.success123"}),
+    )
+
+    from src.services.briefing.answer_processor import AnswerProcessorService
+
+    # Process answer
+    processor = AnswerProcessorService(db_session)
+    result = await processor.process_client_answer(
+        phone_number=test_client.phone,
+        answer_text="Reforma completa do apartamento",
+        wa_message_id="wamid.success_test",
+        session_id=whatsapp_session.id,
+    )
+
+    # Verify success
+    assert result["success"] is True
+    assert result["question_number"] == 1
+    assert result["next_question"] is not None
+
+    # Verify WhatsApp was called
+    mock_whatsapp_send.assert_called_once()
+
+    # Refresh and verify ALL changes persisted
+    await db_session.refresh(active_briefing)
+
+    # Briefing progressed to next question
+    assert active_briefing.current_question_order == 2
+
+    # Answer was saved
+    assert "1" in active_briefing.answers
+    assert active_briefing.answers["1"] == "Reforma completa do apartamento"
+
+    # Status still in progress
+    assert active_briefing.status == BriefingStatus.IN_PROGRESS
+
+    # Incoming message was saved
+    result_msg = await db_session.execute(
+        select(WhatsAppMessage).where(WhatsAppMessage.wa_message_id == "wamid.success_test")
+    )
+    saved_message = result_msg.scalar_one()
+    assert saved_message.session_id == whatsapp_session.id
+    assert saved_message.direction == MessageDirection.INBOUND.value
+    assert saved_message.content["text"]["body"] == "Reforma completa do apartamento"

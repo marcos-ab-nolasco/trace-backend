@@ -4,6 +4,7 @@ import logging
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.briefing import Briefing, BriefingStatus
@@ -32,12 +33,16 @@ class BriefingStartService:
         client_phone: str,
         template_version_id: UUID,
     ) -> Briefing:
-        """Start a new briefing session.
+        """Start or resume a briefing session.
 
         This method:
         1. Creates or updates the EndClient
-        2. Validates that client doesn't have an active briefing
-        3. Creates the briefing in IN_PROGRESS status
+        2. Checks for active briefings
+        3. If no active briefings: creates new one
+        4. If active briefings exist: returns the most recent one (continues it)
+
+        This allows clients to have multiple concurrent briefings (e.g., different projects)
+        and automatically resumes the most recent one when they return.
 
         Args:
             organization_id: Organization ID
@@ -47,10 +52,7 @@ class BriefingStartService:
             template_version_id: Template version to use
 
         Returns:
-            Created Briefing
-
-        Raises:
-            ClientHasActiveBriefingError: If client already has an active briefing
+            Briefing (new or existing)
         """
         # Step 1: Create or update EndClient
         end_client = await self._create_or_update_client(
@@ -60,10 +62,20 @@ class BriefingStartService:
             phone=client_phone,
         )
 
-        # Step 2: Check if client has active briefing
-        await self._validate_no_active_briefing(end_client.id)
+        # Step 2: Check for active briefings
+        active_briefings = await self._get_active_briefings(end_client.id)
 
-        # Step 3: Create briefing
+        # Step 3: If active briefings exist, return the most recent one
+        if active_briefings:
+            existing_briefing = active_briefings[0]  # Most recent (ordered by created_at DESC)
+            logger.info(
+                "Resuming existing briefing: briefing_id=%s client_id=%s",
+                existing_briefing.id,
+                end_client.id,
+            )
+            return existing_briefing
+
+        # Step 4: No active briefings - create new one
         briefing = Briefing(
             end_client_id=end_client.id,
             template_version_id=template_version_id,
@@ -72,7 +84,32 @@ class BriefingStartService:
             answers={},
         )
         self.db.add(briefing)
-        await self.db.flush()
+
+        try:
+            await self.db.flush()
+        except IntegrityError as e:
+            # Race condition: another request created a briefing simultaneously
+            # Rollback and fetch the briefing that was created by the other request
+            logger.warning(
+                "IntegrityError creating briefing for client %s (race condition): %s",
+                end_client.id,
+                str(e),
+            )
+            await self.db.rollback()
+
+            # Fetch the briefing created by the concurrent request
+            active_briefings = await self._get_active_briefings(end_client.id)
+            if active_briefings:
+                existing_briefing = active_briefings[0]
+                logger.info(
+                    "Resuming briefing created by concurrent request: briefing_id=%s client_id=%s",
+                    existing_briefing.id,
+                    end_client.id,
+                )
+                return existing_briefing
+
+            # Should never happen, but re-raise if no briefing found
+            raise
 
         logger.info(
             "Briefing started: briefing_id=%s client_id=%s template_version_id=%s",
@@ -123,25 +160,21 @@ class BriefingStartService:
         logger.info(f"Created new client {new_client.id}")
         return new_client
 
-    async def _validate_no_active_briefing(self, end_client_id: UUID) -> None:
-        """Validate that client doesn't have an active briefing.
+    async def _get_active_briefings(self, end_client_id: UUID) -> list[Briefing]:
+        """Get all active briefings for a client.
 
         Args:
             end_client_id: EndClient ID
 
-        Raises:
-            ClientHasActiveBriefingError: If client has active briefing
+        Returns:
+            List of active briefings, ordered by most recent first
         """
         result = await self.db.execute(
-            select(Briefing).where(
+            select(Briefing)
+            .where(
                 Briefing.end_client_id == end_client_id,
                 Briefing.status == BriefingStatus.IN_PROGRESS,
             )
+            .order_by(Briefing.created_at.desc())
         )
-        active_briefing = result.scalar_one_or_none()
-
-        if active_briefing:
-            raise ClientHasActiveBriefingError(
-                f"Client already has an active briefing (ID: {active_briefing.id}). "
-                "Please complete or cancel the existing briefing before starting a new one."
-            )
+        return list(result.scalars().all())

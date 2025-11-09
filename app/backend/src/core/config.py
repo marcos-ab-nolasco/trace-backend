@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: SecretStr
+    ENCRYPTION_KEY: SecretStr  # Fernet key for encrypting tokens at rest
     ALGORITHM: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -36,8 +37,13 @@ class Settings(BaseSettings):
 
     # WhatsApp Business Cloud API
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: SecretStr | None = None
-    WHATSAPP_PHONE_NUMBER_ID: str | None = None
-    WHATSAPP_ACCESS_TOKEN: SecretStr | None = None
+    WHATSAPP_PHONE_NUMBER_ID: str
+    WHATSAPP_ACCESS_TOKEN: SecretStr
+
+    # Rate Limiting
+    RATE_LIMIT_WEBHOOK: str = "100/minute"  # Webhook POST endpoint limit
+    RATE_LIMIT_GENERAL: str = "60/minute"  # General unauthenticated endpoints
+    RATE_LIMIT_AUTHENTICATED: str = "200/minute"  # Authenticated user endpoints
 
     @property
     def cors_origins_list(self) -> list[str]:

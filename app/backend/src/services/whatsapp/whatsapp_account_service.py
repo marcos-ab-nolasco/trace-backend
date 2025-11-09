@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
+from src.core.crypto import decrypt_token
 from src.db.models.organization import Organization
 
 
@@ -66,7 +67,12 @@ class WhatsAppAccountService:
         # Try organization settings first
         org_settings = organization.settings or {}
         org_phone_id = org_settings.get("phone_number_id")
-        org_access_token = org_settings.get("access_token")
+        org_access_token_encrypted = org_settings.get("access_token")
+
+        # Only decrypt if token is present
+        org_access_token = None
+        if org_access_token_encrypted:
+            org_access_token = decrypt_token(org_access_token_encrypted)
 
         # Use override if provided, otherwise use org phone_id
         phone_id_to_use = phone_number_id_override or org_phone_id
@@ -81,11 +87,7 @@ class WhatsAppAccountService:
 
         # Fall back to global settings
         global_phone_id = get_settings().WHATSAPP_PHONE_NUMBER_ID
-        global_access_token = (
-            get_settings().WHATSAPP_ACCESS_TOKEN.get_secret_value()
-            if get_settings().WHATSAPP_ACCESS_TOKEN
-            else None
-        )
+        global_access_token = get_settings().WHATSAPP_ACCESS_TOKEN.get_secret_value()
 
         if global_phone_id and global_access_token:
             return WhatsAppAccountConfig(

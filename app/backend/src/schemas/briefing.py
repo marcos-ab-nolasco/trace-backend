@@ -1,9 +1,12 @@
 """Pydantic schemas for briefing extraction and management."""
 
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from src.db.models.briefing import BriefingStatus
 
 
 class ExtractedClientInfo(BaseModel):
@@ -107,5 +110,103 @@ class StartBriefingResponse(BaseModel):
     whatsapp_message_id: str | None = Field(
         None, description="WhatsApp message ID if message was sent"
     )
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# CRUD API Schemas
+
+
+class EndClientRead(BaseModel):
+    """Schema for end client information in briefing responses."""
+
+    id: UUID
+    name: str
+    phone: str
+    email: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TemplateInfoRead(BaseModel):
+    """Schema for template information in briefing responses."""
+
+    id: UUID
+    template_id: UUID
+    version_number: int
+    questions: list
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BriefingListItem(BaseModel):
+    """Schema for minimal briefing information in list view."""
+
+    id: UUID
+    status: BriefingStatus
+    current_question_order: int
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+    end_client: EndClientRead
+    template_version: TemplateInfoRead
+
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+
+
+class BriefingListResponse(BaseModel):
+    """Schema for paginated list of briefings."""
+
+    items: list[BriefingListItem]
+    total: int
+    limit: int
+    offset: int
+
+
+class BriefingDetailRead(BaseModel):
+    """Schema for detailed briefing information."""
+
+    id: UUID
+    end_client_id: UUID
+    template_version_id: UUID
+    conversation_id: UUID | None = None
+    status: BriefingStatus
+    current_question_order: int
+    answers: dict = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+    completed_at: datetime | None = None
+    end_client: EndClientRead
+    template_version: TemplateInfoRead
+
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
+
+
+class CancelBriefingRequest(BaseModel):
+    """Schema for cancelling a briefing."""
+
+    reason: str | None = Field(None, max_length=500, description="Reason for cancellation")
+
+
+class AnalyticsMetrics(BaseModel):
+    """Schema for analytics metrics."""
+
+    duration_seconds: int | None = None
+    total_questions: int
+    answered_questions: int
+    required_answered: int
+    optional_answered: int
+    optional_skipped: int
+    completion_rate: float = Field(..., ge=0.0, le=1.0)
+
+
+class AnalyticsResponse(BaseModel):
+    """Schema for briefing analytics."""
+
+    id: UUID
+    briefing_id: UUID
+    metrics: AnalyticsMetrics
+    observations: str | None = None
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

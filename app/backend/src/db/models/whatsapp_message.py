@@ -60,6 +60,12 @@ class WhatsAppMessage(Base):
     timestamp: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True  # WhatsApp message timestamp
     )
+    delivered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True  # When message was delivered
+    )
+    read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True  # When message was read
+    )
 
     # Relationships
     session: Mapped["WhatsAppSession"] = relationship("WhatsAppSession", back_populates="messages")  # type: ignore

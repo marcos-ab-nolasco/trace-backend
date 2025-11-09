@@ -8,6 +8,7 @@ from src.db.models.end_client import EndClient
 from src.db.models.message import Message
 from src.db.models.organization import Organization
 from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
+from src.db.models.processed_webhook import ProcessedWebhook
 from src.db.models.project_type import ProjectType
 from src.db.models.template_version import TemplateVersion
 from src.db.models.whatsapp_account import WhatsAppAccount
@@ -29,6 +30,7 @@ __all__ = [
     "BriefingTemplate",
     "TemplateVersion",
     "ProjectType",
+    "ProcessedWebhook",
     "WhatsAppAccount",
     "WhatsAppSession",
     "WhatsAppMessage",

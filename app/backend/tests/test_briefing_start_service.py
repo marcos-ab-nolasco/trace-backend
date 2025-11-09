@@ -11,7 +11,6 @@ from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
 from src.services.briefing.briefing_start_service import (
     BriefingStartService,
-    ClientHasActiveBriefingError,
 )
 
 
@@ -135,38 +134,41 @@ async def test_start_briefing_updates_existing_client(
 
 
 @pytest.mark.asyncio
-async def test_start_briefing_blocks_if_active_briefing_exists(
+async def test_start_briefing_resumes_if_active_briefing_exists(
     db_session: AsyncSession,
     test_organization: Organization,
     test_architect: Architect,
     test_end_client: EndClient,
     test_template_version: TemplateVersion,
 ):
-    """Test that starting briefing fails if client has active briefing."""
+    """Test that starting briefing returns existing one if client has active briefing."""
     # Create an active briefing
     existing_briefing = Briefing(
         end_client_id=test_end_client.id,
         template_version_id=test_template_version.id,
         status=BriefingStatus.IN_PROGRESS,
-        current_question_order=0,
-        answers={},
+        current_question_order=2,
+        answers={"question_1": "answer_1"},
     )
     db_session.add(existing_briefing)
     await db_session.commit()
+    existing_id = existing_briefing.id
 
     service = BriefingStartService(db_session)
 
-    # Try to start another briefing for same client
-    with pytest.raises(ClientHasActiveBriefingError) as exc_info:
-        await service.start_briefing(
-            organization_id=test_organization.id,
-            architect_id=test_architect.id,
-            client_name=test_end_client.name,
-            client_phone=test_end_client.phone,
-            template_version_id=test_template_version.id,
-        )
+    # Try to start another briefing for same client - should return existing one
+    briefing = await service.start_briefing(
+        organization_id=test_organization.id,
+        architect_id=test_architect.id,
+        client_name=test_end_client.name,
+        client_phone=test_end_client.phone,
+        template_version_id=test_template_version.id,
+    )
 
-    assert "already has an active briefing" in str(exc_info.value).lower()
+    # Should return the existing briefing (resume it)
+    assert briefing.id == existing_id
+    assert briefing.current_question_order == 2
+    assert briefing.answers == {"question_1": "answer_1"}
 
 
 @pytest.mark.asyncio

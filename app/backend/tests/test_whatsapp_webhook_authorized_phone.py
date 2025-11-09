@@ -15,6 +15,8 @@ from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.project_type import ProjectType
 
+TEST_TOKEN_123 = "gAAAAABpD55GOt6oQCSSNdFkpQzHs_OhlT_q5RCRrzmTXiZ6xOdLrnhgAK0CEfMwIcoUO_iX_IX5b1-TtylegI82FCr9l1yUuQ=="
+
 
 @pytest.mark.asyncio
 async def test_webhook_detects_authorized_phone_and_starts_briefing(
@@ -29,7 +31,7 @@ async def test_webhook_detects_authorized_phone_and_starts_briefing(
     # Add WhatsApp settings to organization
     test_organization.settings = {
         "phone_number_id": "123456",
-        "access_token": "test_token_123",
+        "access_token": TEST_TOKEN_123,
     }
     db_session.add(test_organization)
 
@@ -236,7 +238,7 @@ async def test_webhook_extraction_failure_sends_error_to_sender(
     # Add WhatsApp settings to organization
     test_organization.settings = {
         "phone_number_id": "123456",
-        "access_token": "test_token_123",
+        "access_token": TEST_TOKEN_123,
     }
     db_session.add(test_organization)
 

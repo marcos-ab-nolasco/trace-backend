@@ -55,3 +55,10 @@ def auth_headers(test_architect: Architect) -> dict[str, str]:
     """Create authentication headers for test architect."""
     token = create_access_token(data={"sub": str(test_architect.id)})
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def auth_headers_whatsapp(test_architect_with_whatsapp: Architect) -> dict[str, str]:
+    """Create authentication headers for WhatsApp test architect."""
+    token = create_access_token(data={"sub": str(test_architect_with_whatsapp.id)})
+    return {"Authorization": f"Bearer {token}"}

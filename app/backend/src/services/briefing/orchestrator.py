@@ -108,13 +108,17 @@ class BriefingOrchestrator:
         # No more questions
         return None
 
-    async def process_answer(self, briefing_id: UUID, question_order: int, answer: str) -> Briefing:
+    async def process_answer(
+        self, briefing_id: UUID, question_order: int, answer: str, auto_commit: bool = True
+    ) -> Briefing:
         """Process an answer to a question.
 
         Args:
             briefing_id: ID of the briefing
             question_order: Order of the question being answered
             answer: Answer text
+            auto_commit: If True (default), commits changes immediately.
+                        If False, only flushes changes, leaving transaction control to caller.
 
         Returns:
             Updated Briefing instance
@@ -147,17 +151,23 @@ class BriefingOrchestrator:
         # Move to next question
         briefing.current_question_order = question_order + 1
 
-        await self.db_session.commit()
-        await self.db_session.refresh(briefing)
+        if auto_commit:
+            await self.db_session.commit()
+            await self.db_session.refresh(briefing)
+        else:
+            # Only flush changes, caller controls transaction
+            await self.db_session.flush()
 
         logger.info(f"Processed answer for briefing {briefing_id}, question {question_order}")
         return briefing
 
-    async def complete_briefing(self, briefing_id: UUID) -> Briefing:
+    async def complete_briefing(self, briefing_id: UUID, auto_commit: bool = True) -> Briefing:
         """Complete a briefing session.
 
         Args:
             briefing_id: ID of the briefing
+            auto_commit: If True (default), commits changes immediately.
+                        If False, only flushes changes, leaving transaction control to caller.
 
         Returns:
             Completed Briefing instance
@@ -208,8 +218,12 @@ class BriefingOrchestrator:
             # Don't fail briefing completion if analytics creation fails
             logger.error(f"Failed to create analytics for briefing {briefing_id}: {e}")
 
-        await self.db_session.commit()
-        await self.db_session.refresh(briefing)
+        if auto_commit:
+            await self.db_session.commit()
+            await self.db_session.refresh(briefing)
+        else:
+            # Only flush changes, caller controls transaction
+            await self.db_session.flush()
 
         logger.info(f"Completed briefing {briefing_id}")
         return briefing
