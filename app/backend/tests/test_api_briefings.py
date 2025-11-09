@@ -1,9 +1,13 @@
 """Tests for briefing CRUD API endpoints."""
 
+import uuid
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.security import hash_password
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.briefing_analytics import BriefingAnalytics
@@ -39,7 +43,6 @@ async def test_briefing_completed(
     test_template: BriefingTemplate,
 ) -> Briefing:
     """Create a completed briefing with analytics."""
-    from datetime import datetime, timedelta
 
     briefing = Briefing(
         end_client_id=test_end_client.id,
@@ -51,13 +54,12 @@ async def test_briefing_completed(
             "2": "3 quartos",
             "3": "Sim",
         },
-        completed_at=datetime.utcnow(),
-        created_at=datetime.utcnow() - timedelta(minutes=10),
+        completed_at=datetime.now(UTC),
+        created_at=datetime.now(UTC) - timedelta(minutes=10),
     )
     db_session.add(briefing)
     await db_session.flush()
 
-    # Create analytics
     analytics = BriefingAnalytics(
         briefing_id=briefing.id,
         metrics={
@@ -103,17 +105,12 @@ async def other_organization_briefing(
     test_template: BriefingTemplate,
 ) -> Briefing:
     """Create a briefing for a different organization to test isolation."""
-    from src.core.security import hash_password
-
-    # Create another organization
     other_org = Organization(
         name="Other Organization",
         whatsapp_business_account_id="999999999",
     )
     db_session.add(other_org)
     await db_session.flush()
-
-    # Create architect for other org
 
     other_architect = Architect(
         organization_id=other_org.id,
@@ -125,7 +122,6 @@ async def other_organization_briefing(
     db_session.add(other_architect)
     await db_session.flush()
 
-    # Create end client for other org
     other_client = EndClient(
         organization_id=other_org.id,
         architect_id=other_architect.id,
@@ -135,7 +131,6 @@ async def other_organization_briefing(
     db_session.add(other_client)
     await db_session.flush()
 
-    # Create briefing
     briefing = Briefing(
         end_client_id=other_client.id,
         template_version_id=test_template.current_version_id,
@@ -147,9 +142,6 @@ async def other_organization_briefing(
     await db_session.commit()
     await db_session.refresh(briefing)
     return briefing
-
-
-# GET /api/briefings - List Tests
 
 
 @pytest.mark.asyncio
@@ -191,7 +183,6 @@ async def test_list_briefings_with_data(
     assert data["total"] == 3
     assert len(data["items"]) == 3
 
-    # Verify structure of items
     item = data["items"][0]
     assert "id" in item
     assert "status" in item
@@ -210,7 +201,6 @@ async def test_list_briefings_filters_by_status(
     test_briefing_cancelled: Briefing,
 ):
     """Test filtering briefings by status."""
-    # Filter by IN_PROGRESS
     response = await client.get(
         "/api/briefings?status=in_progress",
         headers=auth_headers,
@@ -220,7 +210,6 @@ async def test_list_briefings_filters_by_status(
     assert data["total"] == 1
     assert data["items"][0]["status"] == "in_progress"
 
-    # Filter by COMPLETED
     response = await client.get(
         "/api/briefings?status=completed",
         headers=auth_headers,
@@ -230,7 +219,6 @@ async def test_list_briefings_filters_by_status(
     assert data["total"] == 1
     assert data["items"][0]["status"] == "completed"
 
-    # Filter by CANCELLED
     response = await client.get(
         "/api/briefings?status=cancelled",
         headers=auth_headers,
@@ -269,7 +257,6 @@ async def test_list_briefings_pagination(
     test_briefing_cancelled: Briefing,
 ):
     """Test pagination of briefings list."""
-    # Get first page with limit=2
     response = await client.get(
         "/api/briefings?limit=2&offset=0",
         headers=auth_headers,
@@ -281,7 +268,6 @@ async def test_list_briefings_pagination(
     assert data["limit"] == 2
     assert data["offset"] == 0
 
-    # Get second page
     response = await client.get(
         "/api/briefings?limit=2&offset=2",
         headers=auth_headers,
@@ -307,13 +293,9 @@ async def test_list_briefings_organization_isolation(
     assert response.status_code == 200
     data = response.json()
 
-    # Should only see briefings from own organization
     briefing_ids = {item["id"] for item in data["items"]}
     assert str(test_briefing_in_progress.id) in briefing_ids
     assert str(other_organization_briefing.id) not in briefing_ids
-
-
-# GET /api/briefings/{id} - Get Detail Tests
 
 
 @pytest.mark.asyncio
@@ -354,8 +336,6 @@ async def test_get_briefing_not_found(
     auth_headers: dict[str, str],
 ):
     """Test getting non-existent briefing returns 404."""
-    import uuid
-
     fake_id = uuid.uuid4()
     response = await client.get(
         f"/api/briefings/{fake_id}",
@@ -381,9 +361,6 @@ async def test_get_briefing_cross_organization(
     assert response.status_code == 404
 
 
-# POST /api/briefings/{id}/complete - Complete Tests
-
-
 @pytest.mark.asyncio
 async def test_complete_briefing_unauthenticated(
     client: AsyncClient,
@@ -402,7 +379,6 @@ async def test_complete_briefing_success(
     db_session: AsyncSession,
 ):
     """Test completing an in-progress briefing successfully."""
-    # First, add all required answers to the briefing
     test_briefing_in_progress.answers = {
         "1": "Casa",
         "2": "3 quartos",
@@ -421,7 +397,6 @@ async def test_complete_briefing_success(
     assert data["success"] is True
     assert "completed successfully" in data["message"].lower()
 
-    # Verify briefing was updated in database
     await db_session.refresh(test_briefing_in_progress)
     assert test_briefing_in_progress.status == BriefingStatus.COMPLETED
     assert test_briefing_in_progress.completed_at is not None
@@ -433,8 +408,6 @@ async def test_complete_briefing_not_found(
     auth_headers: dict[str, str],
 ):
     """Test completing non-existent briefing returns 404."""
-    import uuid
-
     fake_id = uuid.uuid4()
     response = await client.post(
         f"/api/briefings/{fake_id}/complete",
@@ -500,13 +473,12 @@ async def test_complete_briefing_missing_required_answers(
     test_template: BriefingTemplate,
 ):
     """Test completing briefing with missing required answers returns 400."""
-    # Create a briefing with incomplete answers
     incomplete_briefing = Briefing(
         end_client_id=test_end_client.id,
         template_version_id=test_template.current_version_id,
         status=BriefingStatus.IN_PROGRESS,
         current_question_order=2,
-        answers={"1": "Casa"},  # Missing questions 2 and 3
+        answers={"1": "Casa"},
     )
     db_session.add(incomplete_briefing)
     await db_session.commit()
@@ -523,9 +495,6 @@ async def test_complete_briefing_missing_required_answers(
         "required questions" in response.json()["detail"].lower()
         or "answer" in response.json()["detail"].lower()
     )
-
-
-# POST /api/briefings/{id}/cancel - Cancel Tests
 
 
 @pytest.mark.asyncio
@@ -561,7 +530,6 @@ async def test_cancel_briefing_success(
     assert "cancelled successfully" in data["message"].lower()
     assert data["reason"] == "Client requested cancellation"
 
-    # Verify briefing was updated in database
     await db_session.refresh(test_briefing_in_progress)
     assert test_briefing_in_progress.status == BriefingStatus.CANCELLED
 
@@ -625,8 +593,6 @@ async def test_cancel_briefing_not_found(
     auth_headers: dict[str, str],
 ):
     """Test cancelling non-existent briefing returns 404."""
-    import uuid
-
     fake_id = uuid.uuid4()
     response = await client.post(
         f"/api/briefings/{fake_id}/cancel",
@@ -651,9 +617,6 @@ async def test_cancel_briefing_cross_organization(
     )
 
     assert response.status_code == 404
-
-
-# GET /api/briefings/{id}/analytics - Analytics Tests
 
 
 @pytest.mark.asyncio
@@ -726,8 +689,6 @@ async def test_get_analytics_not_found(
     auth_headers: dict[str, str],
 ):
     """Test getting analytics for non-existent briefing returns 404."""
-    import uuid
-
     fake_id = uuid.uuid4()
     response = await client.get(
         f"/api/briefings/{fake_id}/analytics",

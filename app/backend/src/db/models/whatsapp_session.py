@@ -14,6 +14,8 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.briefing import Briefing
+    from src.db.models.end_client import EndClient
+    from src.db.models.whatsapp_message import WhatsAppMessage
 
 
 class SessionStatus(str, Enum):
@@ -37,18 +39,14 @@ class WhatsAppSession(Base):
         Uuid, ForeignKey("briefings.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
-    # Contact information
     phone_number: Mapped[str] = mapped_column(String(20), nullable=False)
 
-    # Session status
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default=SessionStatus.ACTIVE.value
     )
 
-    # Optional metadata and context
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -56,12 +54,11 @@ class WhatsAppSession(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
-    # Relationships
-    end_client: Mapped["EndClient"] = relationship("EndClient", back_populates="whatsapp_sessions")  # type: ignore
+    end_client: Mapped["EndClient"] = relationship("EndClient", back_populates="whatsapp_sessions")
     briefing: Mapped["Briefing | None"] = relationship(
         "Briefing", back_populates="whatsapp_sessions"
     )
-    messages: Mapped[list["WhatsAppMessage"]] = relationship(  # type: ignore
+    messages: Mapped[list["WhatsAppMessage"]] = relationship(
         "WhatsAppMessage", back_populates="session", cascade="all, delete-orphan"
     )
 

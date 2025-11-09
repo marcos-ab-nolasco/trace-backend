@@ -64,10 +64,6 @@ class AnswerProcessorService:
         Raises:
             Exception: If WhatsApp send fails (to trigger webhook retry)
         """
-        # ====================================================================
-        # PRE-TRANSACTION CHECKS (non-mutating operations)
-        # ====================================================================
-        # Find client first (needed for both idempotency and normal processing)
         client = await self._find_client_by_phone(phone_number)
         if not client:
             logger.warning(f"Client not found for phone {phone_number}")
@@ -77,9 +73,6 @@ class AnswerProcessorService:
                 "message": "Cliente não encontrado no sistema.",
             }
 
-        # ====================================================================
-        # IDEMPOTENCY CHECK (after finding client, before transaction)
-        # ====================================================================
         existing_webhook = await self._check_if_webhook_already_processed(wa_message_id)
         if existing_webhook:
             logger.info(
@@ -90,14 +83,10 @@ class AnswerProcessorService:
                 "message": "Already processed (idempotent)",
             }
 
-            # On retry after WhatsApp failure, try sending the message again
-            # (DB operations already committed, just retry the WhatsApp send)
             try:
                 if cached_result.get("completed"):
-                    # Completion message needed
                     await self._send_completion_message(client, phone_number_id)
                 elif cached_result.get("next_question"):
-                    # Next question needed
                     await self._send_next_question(
                         client=client,
                         question_text=cached_result["next_question"],
@@ -105,18 +94,14 @@ class AnswerProcessorService:
                     )
                 logger.info(f"WhatsApp retry successful for webhook {wa_message_id}")
             except Exception as e:
-                # WhatsApp still failing, propagate for another retry
                 logger.error(f"WhatsApp retry failed for webhook {wa_message_id}: {e}")
                 raise
 
             return cached_result
 
-        # Continue with normal processing if not already processed
-        # Client already found above, continue with active briefing check
         active_briefing = await self._find_active_briefing(client.id)
         if not active_briefing:
             logger.warning(f"No active briefing for client {client.id}")
-            # Send a friendly message to client (no transaction needed)
             await self._send_no_active_briefing_message(client, phone_number_id)
             return {
                 "success": False,
@@ -125,58 +110,46 @@ class AnswerProcessorService:
                 "no_active_briefing": True,
             }
 
-        # ====================================================================
-        # TRANSACTION BLOCK (all DB mutations happen here)
-        # ====================================================================
-        # Variables to hold data needed after transaction commits
         next_question_text: str | None = None
         completion_message_needed = False
         result_data: dict[str, Any] = {}
 
         try:
-            # All DB operations (no explicit begin, works with existing transaction)
             logger.debug(f"Starting DB operations for webhook {wa_message_id}")
 
-            # 1. Find or create WhatsApp session
             wa_session = await self._get_or_create_session(
                 client_id=client.id,
                 phone_number=phone_number,
                 session_id=session_id,
             )
 
-            # 2. Save incoming message
             await self._save_incoming_message(
                 session_id=wa_session.id,
                 wa_message_id=wa_message_id,
                 answer_text=answer_text,
             )
 
-            # 3. Link session to briefing if needed
             if wa_session.briefing_id != active_briefing.id:
                 wa_session.briefing_id = active_briefing.id
                 await self.db_session.flush()
 
-            # 4. Process answer via orchestrator (with auto_commit=False)
             current_question = active_briefing.current_question_order
             updated_briefing = await self.orchestrator.process_answer(
                 briefing_id=active_briefing.id,
                 question_order=current_question,
                 answer=answer_text,
-                auto_commit=False,  # We control the transaction
+                auto_commit=False,
             )
 
             logger.info(
                 f"Processed answer for briefing {active_briefing.id}, question {current_question}"
             )
 
-            # 5. Get next question data
             next_question_data = await self.orchestrator.next_question(updated_briefing.id)
 
-            # 6. Determine if briefing should be completed
             should_complete = await self._should_complete_briefing(updated_briefing)
 
             if should_complete:
-                # Complete the briefing (with auto_commit=False)
                 completed_briefing = await self.orchestrator.complete_briefing(
                     updated_briefing.id, auto_commit=False
                 )
@@ -202,7 +175,6 @@ class AnswerProcessorService:
                     "status": updated_briefing.status.value,
                 }
             else:
-                # No more questions but not completed yet (edge case)
                 result_data = {
                     "success": True,
                     "briefing_id": updated_briefing.id,
@@ -212,23 +184,10 @@ class AnswerProcessorService:
                     "status": updated_briefing.status.value,
                 }
 
-            # Commit all changes before attempting WhatsApp send
             await self.db_session.commit()
             logger.debug(f"DB changes committed for webhook {wa_message_id}")
 
-            # ====================================================================
-            # Record processing BEFORE WhatsApp send (for idempotency on retry)
-            # ====================================================================
-            # Mark webhook as processed immediately after commit but before WhatsApp.
-            # On retry after WhatsApp failure, this prevents re-processing the answer
-            # while still allowing the WhatsApp send to be retried.
             await self._record_processed_webhook(wa_message_id, result_data)
-
-            # ====================================================================
-            # POST-COMMIT: Send WhatsApp messages (OUTSIDE transaction)
-            # ====================================================================
-            # If WhatsApp fails here, exception propagates and webhook retries.
-            # On retry, idempotency check above will catch it and skip re-processing.
 
             if completion_message_needed:
                 await self._send_completion_message(client, phone_number_id)
@@ -242,10 +201,8 @@ class AnswerProcessorService:
             return result_data
 
         except Exception as e:
-            # Rollback any uncommitted changes
             await self.db_session.rollback()
             logger.error(f"Error processing client answer, rolled back: {str(e)}", exc_info=True)
-            # Re-raise to propagate to webhook caller (trigger retry)
             raise
 
     async def _find_client_by_phone(self, phone_number: str) -> EndClient | None:
@@ -270,7 +227,6 @@ class AnswerProcessorService:
             if session:
                 return session
 
-        # Try to find active session for this client
         result = await self.db_session.execute(
             select(WhatsAppSession).where(
                 WhatsAppSession.end_client_id == client_id,
@@ -280,12 +236,10 @@ class AnswerProcessorService:
         existing_session = result.scalar_one_or_none()
 
         if existing_session:
-            # Update last interaction timestamp
             existing_session.last_interaction_at = datetime.now()
             await self.db_session.flush()
             return existing_session
 
-        # Create new session
         new_session = WhatsAppSession(
             end_client_id=client_id,
             phone_number=phone_number,
@@ -316,7 +270,6 @@ class AnswerProcessorService:
         Returns:
             WhatsAppMessage (existing or newly created)
         """
-        # Check if message already exists (idempotency for webhook retries)
         result = await self.db_session.execute(
             select(WhatsAppMessage).where(WhatsAppMessage.wa_message_id == wa_message_id)
         )
@@ -328,7 +281,6 @@ class AnswerProcessorService:
             )
             return existing_message
 
-        # Create new message
         message = WhatsAppMessage(
             session_id=session_id,
             wa_message_id=wa_message_id,
@@ -357,7 +309,6 @@ class AnswerProcessorService:
 
     async def _should_complete_briefing(self, briefing: Briefing) -> bool:
         """Check if briefing should be completed (all required questions answered)."""
-        # Get template version to check required questions
         result = await self.db_session.execute(
             select(TemplateVersion).where(TemplateVersion.id == briefing.template_version_id)
         )
@@ -365,30 +316,21 @@ class AnswerProcessorService:
         if not template_version:
             return False
 
-        # Get all required questions
         required_questions = [
             q["order"] for q in template_version.questions if q.get("required", False)
         ]
 
-        # Get answered questions
         answered_questions = [int(k) for k in (briefing.answers or {}).keys()]
 
-        # Check if all required questions are answered
         all_required_answered = all(q in answered_questions for q in required_questions)
 
-        # Get next question
         next_question = await self.orchestrator.next_question(briefing.id)
 
-        # Complete if all required are answered AND (no more questions OR next is optional)
         if all_required_answered:
             if not next_question:
-                # No more questions at all
                 return True
-            # Check if remaining questions are optional
             next_is_optional = not next_question.get("required", False)
             if next_is_optional:
-                # Can complete now or wait for optional answers
-                # Complete if no more questions after this optional one
                 total_questions = len(template_version.questions)
                 if briefing.current_question_order >= total_questions:
                     return True
@@ -402,7 +344,6 @@ class AnswerProcessorService:
         phone_number_id: str | None = None,
     ) -> None:
         """Send next question to client via WhatsApp."""
-        # Get organization to access WhatsApp credentials
         result = await self.db_session.execute(
             select(Organization)
             .join(Architect, Organization.id == Architect.organization_id)
@@ -415,7 +356,6 @@ class AnswerProcessorService:
             logger.error(f"Organization not found for client {client.id}")
             return
 
-        # Get WhatsApp config with decrypted token
         account_service = WhatsAppAccountService(self.db_session)
         config = await account_service.get_account_config(organization.id)
 
@@ -423,10 +363,9 @@ class AnswerProcessorService:
             logger.error("WhatsApp credentials not configured")
             return
 
-        # Send message
         whatsapp_service = WhatsAppService(
             phone_number_id=config.phone_number_id,
-            access_token=config.access_token,  # Already decrypted
+            access_token=config.access_token,
         )
 
         result = await whatsapp_service.send_text_message(
@@ -451,7 +390,6 @@ class AnswerProcessorService:
             "Nossa equipe irá analisar suas respostas e entrar em contato em breve."
         )
 
-        # Get organization
         result = await self.db_session.execute(
             select(Organization)
             .join(Architect, Organization.id == Architect.organization_id)
@@ -463,7 +401,6 @@ class AnswerProcessorService:
         if not organization:
             return
 
-        # Get WhatsApp config with decrypted token
         account_service = WhatsAppAccountService(self.db_session)
         config = await account_service.get_account_config(organization.id)
 
@@ -472,7 +409,7 @@ class AnswerProcessorService:
 
         whatsapp_service = WhatsAppService(
             phone_number_id=config.phone_number_id,
-            access_token=config.access_token,  # Already decrypted
+            access_token=config.access_token,
         )
 
         await whatsapp_service.send_text_message(
@@ -492,7 +429,6 @@ class AnswerProcessorService:
             "Entre em contato com seu arquiteto para iniciar um novo briefing."
         )
 
-        # Get organization
         result = await self.db_session.execute(
             select(Organization)
             .join(Architect, Organization.id == Architect.organization_id)
@@ -504,7 +440,6 @@ class AnswerProcessorService:
         if not organization:
             return
 
-        # Get WhatsApp config with decrypted token
         account_service = WhatsAppAccountService(self.db_session)
         config = await account_service.get_account_config(organization.id)
 
@@ -513,7 +448,7 @@ class AnswerProcessorService:
 
         whatsapp_service = WhatsAppService(
             phone_number_id=config.phone_number_id,
-            access_token=config.access_token,  # Already decrypted
+            access_token=config.access_token,
         )
 
         await whatsapp_service.send_text_message(
@@ -546,7 +481,6 @@ class AnswerProcessorService:
             wa_message_id: WhatsApp message ID
             result_data: Processing result to cache (will be JSON serialized)
         """
-        # Convert UUIDs to strings for JSON serialization
         serializable_data = result_data.copy()
         if "briefing_id" in serializable_data:
             serializable_data["briefing_id"] = str(serializable_data["briefing_id"])

@@ -24,7 +24,6 @@ class WebhookHandler:
         """
         events: list[dict[str, Any]] = []
 
-        # Validate basic structure
         if payload.get("object") != "whatsapp_business_account":
             logger.warning(f"Invalid webhook object type: {payload.get('object')}")
             return events
@@ -39,14 +38,12 @@ class WebhookHandler:
                 value = change.get("value", {})
                 phone_number_id = value.get("metadata", {}).get("phone_number_id")
 
-                # Parse incoming messages
                 messages = value.get("messages", [])
                 for message in messages:
                     parsed_message = WebhookHandler._parse_message(message, phone_number_id)
                     if parsed_message:
                         events.append(parsed_message)
 
-                # Parse status updates
                 statuses = value.get("statuses", [])
                 for status in statuses:
                     parsed_status = WebhookHandler._parse_status_update(status, phone_number_id)
@@ -78,7 +75,6 @@ class WebhookHandler:
             logger.warning(f"Incomplete message data: {message}")
             return None
 
-        # Parse content based on message type
         content: dict[str, Any] = {"type": message_type}
 
         if message_type == "text":
@@ -135,7 +131,6 @@ class WebhookHandler:
             logger.warning(f"Incomplete status data: {status}")
             return None
 
-        # Map WhatsApp status to our MessageStatus enum
         status_mapping = {
             "sent": MessageStatus.SENT.value,
             "delivered": MessageStatus.DELIVERED.value,
@@ -154,13 +149,11 @@ class WebhookHandler:
             "recipient_id": recipient_id,
         }
 
-        # Include error details if failed
         if status_value == "failed":
             errors = status.get("errors", [])
             if errors:
-                error = errors[0]  # Take first error
+                error = errors[0]
                 result["error_code"] = str(error.get("code", ""))
-                # Combine title and message for full error context
                 title = error.get("title", "")
                 message = error.get("message", "")
                 if title and message:

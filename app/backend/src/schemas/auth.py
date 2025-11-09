@@ -12,6 +12,6 @@ class Token(BaseModel):
 class TokenPayload(BaseModel):
     """Token payload schema."""
 
-    sub: str | None = None  # UUID as string in JWT
+    sub: str | None = None
     exp: int | None = None
     type: str | None = None

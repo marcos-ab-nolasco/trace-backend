@@ -25,9 +25,7 @@ class BriefingTemplate(Base):
         Uuid, primary_key=True, server_default=func.gen_random_uuid(), index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    category: Mapped[str | None] = mapped_column(
-        String(100), nullable=True
-    )  # legacy categorization
+    category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_global: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     organization_id: Mapped[UUID | None] = mapped_column(
@@ -48,12 +46,10 @@ class BriefingTemplate(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    # Unique constraint: name must be unique per organization (global templates have organization_id = NULL)
     __table_args__ = (
         UniqueConstraint("name", "organization_id", name="uq_template_name_organization"),
     )
 
-    # Relationships
     organization: Mapped["Organization | None"] = relationship(
         "Organization", back_populates="templates"
     )

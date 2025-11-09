@@ -2,13 +2,14 @@ import logging
 from collections.abc import Awaitable
 from typing import cast
 
-# import time
-from fastapi import FastAPI  # , Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
 
 from src.api import auth, briefings, chat, organizations, templates, whatsapp_webhook
+from src.core.cache import client as cache_client
 from src.core.config import get_settings
 from src.core.lifespan import lifespan
 from src.core.logging_config.middleware import LoggingMiddleware
@@ -28,13 +29,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure rate limiting
 app.state.limiter = limiter
 app.state.limiter_authenticated = limiter_authenticated
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins_list,
@@ -43,12 +42,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add middleware to populate architect_id in request.state (must be before rate limiting)
 app.add_middleware(UserStateMiddleware)
 
 app.add_middleware(LoggingMiddleware)
 
-# Include routers
 app.include_router(auth.router)
 app.include_router(briefings.router)
 app.include_router(chat.router)
@@ -77,27 +74,21 @@ async def health_check(
         "environment": settings.ENVIRONMENT,
     }
 
-    # Check database connectivity
     if check_db:
-        from sqlalchemy import text
-
         session_factory = get_async_sessionmaker()
 
         try:
             async with session_factory() as session:
                 await session.execute(text("SELECT 1"))
                 result["database"] = "connected"
-        except Exception as e:  # pragma: no cover - diagnostic only
+        except Exception as e:
             result["status"] = "unhealthy"
             result["database"] = "disconnected"
             result["error"] = str(e)
 
-    # Check Redis connectivity
     if check_redis:
-        from src.core.cache.client import get_redis_client
-
         try:
-            redis_client = get_redis_client()
+            redis_client = cache_client.get_redis_client()
             await cast(Awaitable[bool], redis_client.ping())
             result["redis"] = "connected"
         except Exception as e:
@@ -106,9 +97,7 @@ async def health_check(
             if "error" not in result:
                 result["error"] = str(e)
 
-    # Check AI providers availability
     if check_ai:
-        # Check if any AI provider is configured
         has_openai = settings.OPENAI_API_KEY is not None
         has_anthropic = settings.ANTHROPIC_API_KEY is not None
 

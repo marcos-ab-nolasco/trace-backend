@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/briefings", tags=["briefings"])
 
-# Configuration constants
 MIN_EXTRACTION_CONFIDENCE = 0.50
 DEFAULT_AI_PROVIDER = "openai"
 DEFAULT_EXTRACTION_MODEL = "gpt-4o-mini"
@@ -75,12 +74,10 @@ async def start_briefing_from_whatsapp(
     )
 
     try:
-        # Step 1: Verify architect exists and get organization
         architect, organization = await _get_architect_and_organization(
             db_session, request.architect_id
         )
 
-        # Step 2: Extract client information using AI
         extraction_service = _get_extraction_service()
         extracted_info = await extraction_service.extract_client_info(
             message=request.architect_message,
@@ -98,13 +95,10 @@ async def start_briefing_from_whatsapp(
             },
         )
 
-        # Step 3: Validate extraction
         _validate_extraction(extracted_info)
 
-        # Step 4: Normalize phone number
         normalized_phone = normalize_phone(extracted_info.phone)
 
-        # Step 5: Create or update EndClient
         end_client = await _create_or_update_client(
             db_session=db_session,
             organization_id=organization.id,
@@ -113,14 +107,12 @@ async def start_briefing_from_whatsapp(
             phone=normalized_phone,
         )
 
-        # Step 6: Identify appropriate template
         template_service = TemplateService(db_session)
         template_version = await template_service.select_template_version_for_project(
             architect_id=request.architect_id,
             project_type_slug=(extracted_info.project_type or "residencial"),
         )
 
-        # Step 7: Start briefing session
         template_version_id = template_version.id
 
         orchestrator = BriefingOrchestrator(db_session)
@@ -129,11 +121,9 @@ async def start_briefing_from_whatsapp(
             template_version_id=template_version_id,
         )
 
-        # Step 8: Get first question
         first_question_data = await orchestrator.next_question(briefing.id)
         first_question = first_question_data["question"]
 
-        # Step 9: Get WhatsApp service and send first question
         whatsapp_service = await _get_whatsapp_service(organization.id, db_session)
         whatsapp_result = await whatsapp_service.send_text_message(
             to=normalized_phone,
@@ -148,7 +138,6 @@ async def start_briefing_from_whatsapp(
                 detail=f"Failed to send WhatsApp message: {error_msg}",
             )
 
-        # Step 10: Create conversation record
         await _create_conversation(
             db_session=db_session,
             architect=architect,
@@ -162,7 +151,6 @@ async def start_briefing_from_whatsapp(
             },
         )
 
-        # Commit transaction
         await db_session.commit()
 
         logger.info(
@@ -178,7 +166,6 @@ async def start_briefing_from_whatsapp(
             },
         )
 
-        # Return response
         return StartBriefingResponse(
             briefing_id=briefing.id,
             client_id=end_client.id,
@@ -194,20 +181,15 @@ async def start_briefing_from_whatsapp(
         )
 
     except HTTPException:
-        # Re-raise HTTP exceptions as-is
         await db_session.rollback()
         raise
     except Exception as e:
-        # Rollback and log unexpected errors
         await db_session.rollback()
         logger.exception("Unexpected error starting briefing from WhatsApp")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start briefing: {str(e)}",
         ) from e
-
-
-# CRUD API Endpoints
 
 
 @router.get("", response_model=BriefingListResponse)
@@ -248,7 +230,6 @@ async def list_briefings(
         },
     )
 
-    # Build query with organization isolation
     query = (
         select(Briefing)
         .join(EndClient, Briefing.end_client_id == EndClient.id)
@@ -259,7 +240,6 @@ async def list_briefings(
         )
     )
 
-    # Apply filters
     if status_filter:
         query = query.where(Briefing.status == status_filter)
 
@@ -267,7 +247,6 @@ async def list_briefings(
         query = query.where(Briefing.end_client_id == end_client_id)
 
     if template_id:
-        # Filter by template_id (any version of that template)
         query = query.join(
             TemplateVersion, Briefing.template_version_id == TemplateVersion.id
         ).where(TemplateVersion.template_id == template_id)
@@ -278,15 +257,12 @@ async def list_briefings(
     if created_before:
         query = query.where(Briefing.created_at <= created_before)
 
-    # Get total count (before pagination)
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db_session.execute(count_query)
     total = total_result.scalar_one()
 
-    # Apply pagination and ordering
     query = query.order_by(Briefing.created_at.desc()).limit(limit).offset(offset)
 
-    # Execute query
     result = await db_session.execute(query)
     briefings = result.scalars().all()
 
@@ -318,7 +294,6 @@ async def get_briefing(
         extra={"briefing_id": str(briefing_id)},
     )
 
-    # Query with organization isolation
     query = (
         select(Briefing)
         .join(EndClient, Briefing.end_client_id == EndClient.id)
@@ -366,7 +341,6 @@ async def complete_briefing(
         extra={"briefing_id": str(briefing_id)},
     )
 
-    # Verify briefing exists and belongs to organization
     query = (
         select(Briefing)
         .join(EndClient, Briefing.end_client_id == EndClient.id)
@@ -385,19 +359,16 @@ async def complete_briefing(
             detail="Briefing not found",
         )
 
-    # Check if briefing is in progress
     if briefing.status != BriefingStatus.IN_PROGRESS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot complete briefing with status {briefing.status.value}",
         )
 
-    # Complete briefing using orchestrator
     orchestrator = BriefingOrchestrator(db_session)
     try:
         await orchestrator.complete_briefing(briefing_id)
     except ValueError as e:
-        # Handle validation errors (e.g., missing required answers, template issues)
         logger.warning(f"Cannot complete briefing {briefing_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -439,7 +410,6 @@ async def cancel_briefing(
         },
     )
 
-    # Verify briefing exists and belongs to organization
     query = (
         select(Briefing)
         .join(EndClient, Briefing.end_client_id == EndClient.id)
@@ -458,7 +428,6 @@ async def cancel_briefing(
             detail="Briefing not found",
         )
 
-    # Idempotent: if already cancelled, return success
     if briefing.status == BriefingStatus.CANCELLED:
         logger.info(f"Briefing {briefing_id} already cancelled")
         return {
@@ -467,14 +436,12 @@ async def cancel_briefing(
             "briefing_id": str(briefing_id),
         }
 
-    # Cannot cancel completed briefings
     if briefing.status == BriefingStatus.COMPLETED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot cancel a completed briefing",
         )
 
-    # Cancel briefing using orchestrator
     orchestrator = BriefingOrchestrator(db_session)
     await orchestrator.cancel_briefing(briefing_id)
 
@@ -514,7 +481,6 @@ async def get_briefing_analytics(
         extra={"briefing_id": str(briefing_id)},
     )
 
-    # Verify briefing exists and belongs to organization
     query = (
         select(Briefing)
         .join(EndClient, Briefing.end_client_id == EndClient.id)
@@ -533,14 +499,12 @@ async def get_briefing_analytics(
             detail="Briefing not found",
         )
 
-    # Check if briefing is completed
     if briefing.status != BriefingStatus.COMPLETED:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Analytics are only available for completed briefings",
         )
 
-    # Get analytics using service
     analytics_service = AnalyticsService(db_session)
     analytics = await analytics_service.get_analytics(briefing_id)
 
@@ -550,7 +514,6 @@ async def get_briefing_analytics(
             detail="Analytics not found for this briefing",
         )
 
-    # Parse metrics into schema
     metrics = AnalyticsMetrics(**analytics.metrics)
 
     return AnalyticsResponse(
@@ -562,7 +525,6 @@ async def get_briefing_analytics(
     )
 
 
-# Helper functions
 async def _get_architect_and_organization(
     db_session: AsyncSession, architect_id: UUID
 ) -> tuple[Architect, Organization]:
@@ -592,7 +554,6 @@ def _get_extraction_service() -> ExtractionService:
 
 def _validate_extraction(extracted_info: ExtractedClientInfo) -> None:
     """Validate that extraction has required fields and sufficient confidence."""
-    # Check confidence threshold
     if extracted_info.confidence < MIN_EXTRACTION_CONFIDENCE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -602,7 +563,6 @@ def _validate_extraction(extracted_info: ExtractedClientInfo) -> None:
             ),
         )
 
-    # Check required fields
     if not extracted_info.name or not extracted_info.name.strip():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -628,7 +588,6 @@ async def _create_or_update_client(
     Handles unique constraint on (organization_id, phone) by updating existing client.
     """
     try:
-        # Try to get existing client with same phone in the organization
         result = await db_session.execute(
             select(EndClient).where(
                 EndClient.organization_id == organization_id,
@@ -638,14 +597,12 @@ async def _create_or_update_client(
         existing_client = result.scalar_one_or_none()
 
         if existing_client:
-            # Update existing client (name and architect_id may have changed)
             logger.info(f"Updating existing client {existing_client.id}")
             existing_client.name = name
-            existing_client.architect_id = architect_id  # Update architect if needed
+            existing_client.architect_id = architect_id
             await db_session.flush()
             return existing_client
 
-        # Create new client
         new_client = EndClient(
             organization_id=organization_id,
             architect_id=architect_id,
@@ -681,7 +638,7 @@ async def _get_whatsapp_service(
 
     return WhatsAppService(
         phone_number_id=config.phone_number_id,
-        access_token=config.access_token,  # Already decrypted by WhatsAppAccountService
+        access_token=config.access_token,
     )
 
 

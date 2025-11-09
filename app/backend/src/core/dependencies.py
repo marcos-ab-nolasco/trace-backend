@@ -59,7 +59,6 @@ async def get_current_architect(
         logger.warning(f"Invalid token: reason=decode_failed error={str(e)}")
         raise credentials_exception from e
 
-    # Check token type
     if payload.get("type") != "access":
         logger.warning(f"Invalid token: reason=wrong_token_type token_type={payload.get('type')}")
         raise credentials_exception
@@ -77,14 +76,12 @@ async def get_current_architect(
         )
         raise credentials_exception from e
 
-    # Fetch architect from database (cached by architect_id)
     architect = await _get_architect_by_id(db, architect_id)
 
     if architect is None:
         logger.warning("Invalid token: reason=architect_not_found architect_id=%s", architect_id)
         raise credentials_exception
 
-    # Store architect_id in request state for middleware logging
     request.state.architect_id = str(architect_id)
 
     return architect
@@ -100,6 +97,5 @@ async def get_current_architect_id(
     return current_architect.id
 
 
-# Backwards-compatible aliases while the rest of the stack migrates terminology.
 get_current_user = get_current_architect
 get_current_user_id = get_current_architect_id

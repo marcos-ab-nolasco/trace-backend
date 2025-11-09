@@ -37,7 +37,6 @@ class AuthorizedPhone(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    # Relationships
     organization: Mapped["Organization"] = relationship(
         "Organization", back_populates="authorized_phones"
     )

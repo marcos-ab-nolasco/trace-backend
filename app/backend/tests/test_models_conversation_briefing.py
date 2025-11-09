@@ -3,6 +3,7 @@
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 
 from src.db.models.architect import Architect
 from src.db.models.conversation import Conversation, ConversationType
@@ -13,7 +14,6 @@ from src.db.models.organization import Organization
 @pytest.mark.asyncio
 async def test_create_web_chat_conversation(db_session):
     """Test creating a web chat conversation (original functionality)."""
-    # Create organization and architect
     org = Organization(name="Chat Org")
     db_session.add(org)
     await db_session.commit()
@@ -50,7 +50,6 @@ async def test_create_web_chat_conversation(db_session):
 @pytest.mark.asyncio
 async def test_create_whatsapp_briefing_conversation(db_session):
     """Test creating a WhatsApp briefing conversation."""
-    # Setup organization, architect, end_client
     org = Organization(name="Test Org")
     db_session.add(org)
     await db_session.commit()
@@ -73,7 +72,6 @@ async def test_create_whatsapp_briefing_conversation(db_session):
     await db_session.commit()
     await db_session.refresh(end_client)
 
-    # Create WhatsApp briefing conversation
     conversation = Conversation(
         architect_id=architect.id,
         title="Briefing: Client",
@@ -133,7 +131,6 @@ async def test_conversation_relationship_with_end_client(db_session):
     await db_session.commit()
     await db_session.refresh(conversation)
 
-    # Test relationship
     assert conversation.end_client.id == end_client.id
     assert conversation.end_client.name == "Test"
 
@@ -167,7 +164,6 @@ async def test_conversation_relationship_with_architect(db_session):
     await db_session.commit()
     await db_session.refresh(conversation)
 
-    # Test relationship
     assert conversation.architect.id == architect.id
     assert conversation.architect.email == "archrel@test.com"
 
@@ -190,7 +186,6 @@ async def test_conversation_type_enum(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Test WEB_CHAT type
     conv1 = Conversation(
         architect_id=architect.id,
         title="Web Chat",
@@ -263,12 +258,8 @@ async def test_conversation_cascade_on_architect_delete(db_session):
     await db_session.commit()
     conversation_id = conversation.id
 
-    # Delete architect
     await db_session.delete(architect)
     await db_session.commit()
-
-    # Verify conversation is deleted (CASCADE)
-    from sqlalchemy import select
 
     result = await db_session.execute(
         select(Conversation).where(Conversation.id == conversation_id)
@@ -284,9 +275,8 @@ async def test_conversation_set_null_on_architect_delete_if_needed(db_session):
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create conversation without architect (nullable)
     conversation = Conversation(
-        architect_id=None,  # Nullable for system-generated conversations
+        architect_id=None,
         title="System Conversation",
         ai_provider="openai",
         ai_model="gpt-4",

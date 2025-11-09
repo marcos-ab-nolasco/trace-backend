@@ -1,21 +1,20 @@
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
+from typing import cast
 
 from fastapi import FastAPI
+from sqlalchemy import text
 
 from src.core.cache.client import get_redis_client
 from src.db.session import get_engine
-
-# from path/to/client import get_redis_client
-
 
 log = logging.getLogger(__name__)
 
 
 async def _check_connection_redis_server() -> None:
     log.debug("Verificando conexão com servidor de cache")
-    await get_redis_client().ping()  # type: ignore[misc]
+    await cast("Awaitable[bool]", get_redis_client().ping())
 
 
 async def _close_connection_redis_server() -> None:
@@ -25,8 +24,6 @@ async def _close_connection_redis_server() -> None:
 
 async def _check_connection_postgres_server() -> None:
     log.debug("Verificando conexão com servidor Postgres")
-    from sqlalchemy import text
-
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.execute(text("SELECT 1"))
@@ -43,7 +40,6 @@ async def _close_connection_postgres_server() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    # Startup
     await _check_connection_redis_server()
     await _check_connection_postgres_server()
 

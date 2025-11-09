@@ -55,7 +55,6 @@ class WhatsAppAccountService:
         Raises:
             ValueError: If organization not found
         """
-        # Get organization
         result = await self.db.execute(
             select(Organization).where(Organization.id == organization_id)
         )
@@ -64,20 +63,16 @@ class WhatsAppAccountService:
         if not organization:
             raise ValueError(f"Organization not found: {organization_id}")
 
-        # Try organization settings first
         org_settings = organization.settings or {}
         org_phone_id = org_settings.get("phone_number_id")
         org_access_token_encrypted = org_settings.get("access_token")
 
-        # Only decrypt if token is present
         org_access_token = None
         if org_access_token_encrypted:
             org_access_token = decrypt_token(org_access_token_encrypted)
 
-        # Use override if provided, otherwise use org phone_id
         phone_id_to_use = phone_number_id_override or org_phone_id
 
-        # If org has access_token and phone_id (either from settings or override)
         if org_access_token and phone_id_to_use:
             return WhatsAppAccountConfig(
                 phone_number_id=phone_id_to_use,
@@ -85,7 +80,6 @@ class WhatsAppAccountService:
                 source="organization",
             )
 
-        # Fall back to global settings
         global_phone_id = get_settings().WHATSAPP_PHONE_NUMBER_ID
         global_access_token = get_settings().WHATSAPP_ACCESS_TOKEN.get_secret_value()
 
@@ -96,5 +90,4 @@ class WhatsAppAccountService:
                 source="global",
             )
 
-        # No config available
         return None

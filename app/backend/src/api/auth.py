@@ -44,7 +44,6 @@ async def register(
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> Architect:
     """Register a new architect along with their organization."""
-    # Check if architect already exists
     result = await db.execute(select(Architect).where(Architect.email == architect_data.email))
     existing_architect = result.scalar_one_or_none()
 
@@ -56,7 +55,6 @@ async def register(
         )
 
     try:
-        # Create organization first so we can assign architect to it
         organization = Organization(
             name=architect_data.organization_name,
             settings={
@@ -68,7 +66,6 @@ async def register(
         db.add(organization)
         await db.flush()
 
-        # Create architect tied to the organization
         new_architect = Architect(
             organization_id=organization.id,
             email=architect_data.email,
@@ -79,9 +76,8 @@ async def register(
         )
 
         db.add(new_architect)
-        await db.flush()  # Flush to get architect ID
+        await db.flush()
 
-        # Add architect's phone as first authorized phone for the organization
         phone_service = AuthorizedPhoneService(db)
         await phone_service.add_phone(
             organization_id=organization.id,
@@ -125,11 +121,9 @@ async def login(
     response: Response,
 ) -> Token:
     """Login with email and password to get access and refresh tokens."""
-    # Find user by email
     result = await db.execute(select(Architect).where(Architect.email == credentials.username))
     architect = result.scalar_one_or_none()
 
-    # Verify architect and password
     if not architect or not verify_password(credentials.password, architect.hashed_password):
         logger.warning("Login failed: email=%s reason=invalid_credentials", credentials.username)
         raise HTTPException(
@@ -138,7 +132,6 @@ async def login(
             headers={"WWW-Authenticate": "Basic"},
         )
 
-    # Create tokens (sub must be string)
     access_token = create_access_token(data={"sub": str(architect.id)})
     refresh_token = await create_session(str(architect.id))
 
@@ -181,7 +174,6 @@ async def refresh(
         clear_refresh_cookie(response)
         raise credentials_exception from err
 
-    # Verify architect exists
     result = await db.execute(select(Architect).where(Architect.id == architect_id))
     architect = result.scalar_one_or_none()
 
@@ -193,7 +185,6 @@ async def refresh(
         clear_refresh_cookie(response)
         raise credentials_exception
 
-    # Rotate session cookie and mint new access token
     new_refresh_token = await replace_session(refresh_cookie, str(architect.id))
     set_refresh_cookie(response, new_refresh_token)
 

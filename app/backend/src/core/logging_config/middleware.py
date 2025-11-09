@@ -11,7 +11,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Log all HTTP requests with method, path, status code, and duration."""
-        # Skip health_check to avoid log pollution
         if request.url.path == "/health_check":
             return await call_next(request)
 
@@ -19,7 +18,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         duration_ms = int((time() - start_time) * 1000)
 
-        # Try to extract architect_id from request state (set by auth dependency)
         architect_id = getattr(request.state, "architect_id", None) or "anonymous"
 
         logger.info(

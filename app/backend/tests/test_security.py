@@ -23,7 +23,6 @@ def test_password_hashing() -> None:
 
 def test_password_hashing_long_password() -> None:
     """Test password hashing with long password (SHA256 preprocessing)."""
-    # Password longer than 72 bytes
     long_password = "a" * 100
     hashed = hash_password(long_password)
 

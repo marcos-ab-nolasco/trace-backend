@@ -1,5 +1,7 @@
 """Tests for AuthorizedPhoneService."""
 
+from uuid import uuid4
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +35,6 @@ async def test_add_phone(
     assert phone.added_by_architect_id == test_architect.id
     assert phone.is_active is True
 
-    # Verify it's in database
     result = await db_session.execute(select(AuthorizedPhone).where(AuthorizedPhone.id == phone.id))
     db_phone = result.scalar_one()
     assert db_phone.phone_number == "+5511987654321"
@@ -46,14 +47,12 @@ async def test_add_phone_duplicate_raises_error(
     """Test that adding duplicate phone raises PhoneAlreadyExistsError."""
     service = AuthorizedPhoneService(db_session)
 
-    # Add phone first time
     await service.add_phone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
         added_by_architect_id=test_architect.id,
     )
 
-    # Try to add same phone again
     with pytest.raises(PhoneAlreadyExistsError) as exc_info:
         await service.add_phone(
             organization_id=test_organization.id,
@@ -69,7 +68,6 @@ async def test_add_phone_different_orgs_same_phone(
     db_session: AsyncSession, test_architect: Architect
 ):
     """Test that same phone can be added to different organizations."""
-    # Create two organizations
     org1 = Organization(name="Org 1")
     org2 = Organization(name="Org 2")
     db_session.add_all([org1, org2])
@@ -79,7 +77,6 @@ async def test_add_phone_different_orgs_same_phone(
 
     service = AuthorizedPhoneService(db_session)
 
-    # Add same phone to both orgs - should work
     phone1 = await service.add_phone(
         organization_id=org1.id,
         phone_number="+5511987654321",
@@ -102,7 +99,6 @@ async def test_remove_phone(
     """Test removing an authorized phone."""
     service = AuthorizedPhoneService(db_session)
 
-    # Add two phones
     phone1 = await service.add_phone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
@@ -114,10 +110,8 @@ async def test_remove_phone(
         added_by_architect_id=test_architect.id,
     )
 
-    # Remove first phone
     await service.remove_phone(phone_id=phone1.id, organization_id=test_organization.id)
 
-    # Verify it's deleted
     result = await db_session.execute(
         select(AuthorizedPhone).where(AuthorizedPhone.id == phone1.id)
     )
@@ -130,8 +124,6 @@ async def test_remove_phone_not_found_raises_error(
 ):
     """Test that removing non-existent phone raises PhoneNotFoundError."""
     service = AuthorizedPhoneService(db_session)
-
-    from uuid import uuid4
 
     fake_id = uuid4()
 
@@ -146,14 +138,12 @@ async def test_remove_last_phone_raises_error(
     """Test that removing the last phone raises MinimumPhonesError."""
     service = AuthorizedPhoneService(db_session)
 
-    # Add only one phone
     phone = await service.add_phone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
         added_by_architect_id=test_architect.id,
     )
 
-    # Try to remove it (should fail - need minimum 1 phone)
     with pytest.raises(MinimumPhonesError) as exc_info:
         await service.remove_phone(phone_id=phone.id, organization_id=test_organization.id)
 
@@ -167,7 +157,6 @@ async def test_list_phones(
     """Test listing authorized phones for an organization."""
     service = AuthorizedPhoneService(db_session)
 
-    # Add multiple phones
     await service.add_phone(
         organization_id=test_organization.id,
         phone_number="+5511111111111",
@@ -179,7 +168,6 @@ async def test_list_phones(
         added_by_architect_id=test_architect.id,
     )
 
-    # List phones
     phones = await service.list_phones(organization_id=test_organization.id)
 
     assert len(phones) == 2
@@ -195,14 +183,12 @@ async def test_list_phones_only_active(
     """Test that list_phones only returns active phones by default."""
     service = AuthorizedPhoneService(db_session)
 
-    # Add active phone
     await service.add_phone(
         organization_id=test_organization.id,
         phone_number="+5511111111111",
         added_by_architect_id=test_architect.id,
     )
 
-    # Add inactive phone directly
     inactive_phone = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511222222222",
@@ -212,13 +198,11 @@ async def test_list_phones_only_active(
     db_session.add(inactive_phone)
     await db_session.commit()
 
-    # List phones (should only return active)
     phones = await service.list_phones(organization_id=test_organization.id)
 
     assert len(phones) == 1
     assert phones[0].phone_number == "+5511111111111"
 
-    # List all phones including inactive
     all_phones = await service.list_phones(
         organization_id=test_organization.id, include_inactive=True
     )
@@ -266,7 +250,6 @@ async def test_is_authorized_false_inactive(
     db_session: AsyncSession, test_organization: Organization, test_architect: Architect
 ):
     """Test is_authorized returns False for inactive phone."""
-    # Add inactive phone directly
     inactive_phone = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
@@ -314,8 +297,6 @@ async def test_get_phone_by_id_not_found_raises_error(
 ):
     """Test get_phone_by_id raises error for non-existent phone."""
     service = AuthorizedPhoneService(db_session)
-
-    from uuid import uuid4
 
     fake_id = uuid4()
 

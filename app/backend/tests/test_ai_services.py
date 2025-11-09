@@ -113,7 +113,6 @@ async def test_anthropic_service_returns_message_when_api_key_missing(
 
 def test_factory_returns_correct_service(mocker: MockerFixture) -> None:
     """Factory should return the correct service type for known providers."""
-    # Mock the service classes before they are instantiated
     mock_openai_class = mocker.patch("src.services.ai.OpenAIService")
     mock_anthropic_class = mocker.patch("src.services.ai.AnthropicService")
 

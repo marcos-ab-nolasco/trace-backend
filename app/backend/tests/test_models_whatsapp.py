@@ -14,7 +14,6 @@ from src.db.models.whatsapp_message import MessageDirection, MessageStatus, What
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 
 
-# WhatsAppAccount Tests with N:N Organization Relationship
 @pytest.mark.asyncio
 async def test_create_whatsapp_account(db_session: AsyncSession):
     """Test creating a WhatsApp account without organization (standalone)."""
@@ -43,7 +42,6 @@ async def test_create_whatsapp_account(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_whatsapp_account_n_to_n_with_organizations(db_session: AsyncSession):
     """Test N:N relationship between WhatsApp account and organizations."""
-    # Create two organizations
     org1 = Organization(name="Org 1")
     org2 = Organization(name="Org 2")
     db_session.add_all([org1, org2])
@@ -51,7 +49,6 @@ async def test_whatsapp_account_n_to_n_with_organizations(db_session: AsyncSessi
     await db_session.refresh(org1)
     await db_session.refresh(org2)
 
-    # Create WhatsApp account
     account = WhatsAppAccount(
         phone_number_id="phone123",
         phone_number="+5511999999999",
@@ -62,7 +59,6 @@ async def test_whatsapp_account_n_to_n_with_organizations(db_session: AsyncSessi
     await db_session.commit()
     await db_session.refresh(account)
 
-    # Link account to both organizations
     link1 = OrganizationWhatsAppAccount(
         organization_id=org1.id, whatsapp_account_id=account.id, is_primary=True
     )
@@ -72,7 +68,6 @@ async def test_whatsapp_account_n_to_n_with_organizations(db_session: AsyncSessi
     db_session.add_all([link1, link2])
     await db_session.commit()
 
-    # Refresh and verify relationships with eager loading
     result = await db_session.execute(
         select(WhatsAppAccount)
         .where(WhatsAppAccount.id == account.id)
@@ -87,11 +82,9 @@ async def test_whatsapp_account_n_to_n_with_organizations(db_session: AsyncSessi
     await db_session.refresh(org1, ["whatsapp_account_links"])
     await db_session.refresh(org2, ["whatsapp_account_links"])
 
-    # One account can be shared by multiple organizations
     assert len(account.organization_links) == 2
     assert {link.organization.name for link in account.organization_links} == {"Org 1", "Org 2"}
 
-    # Each organization sees the shared account
     assert len(org1.whatsapp_account_links) == 1
     assert len(org2.whatsapp_account_links) == 1
 
@@ -105,14 +98,13 @@ async def test_whatsapp_account_unique_phone_number_id(db_session: AsyncSession)
     db_session.add(account1)
     await db_session.commit()
 
-    # Try to create another account with same phone_number_id
     account2 = WhatsAppAccount(
-        phone_number_id="phone123",  # Same ID
+        phone_number_id="phone123",
         phone_number="+5511222222222",
         access_token="token2",
     )
     db_session.add(account2)
-    with pytest.raises(Exception):  # IntegrityError - unique constraint violation
+    with pytest.raises(Exception):
         await db_session.commit()
 
 
@@ -124,7 +116,6 @@ async def test_whatsapp_account_is_primary_flag(db_session: AsyncSession):
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create two accounts
     account1 = WhatsAppAccount(
         phone_number_id="phone1", phone_number="+5511111111111", access_token="token1"
     )
@@ -136,7 +127,6 @@ async def test_whatsapp_account_is_primary_flag(db_session: AsyncSession):
     await db_session.refresh(account1)
     await db_session.refresh(account2)
 
-    # Link both with different is_primary flags
     link1 = OrganizationWhatsAppAccount(
         organization_id=org.id, whatsapp_account_id=account1.id, is_primary=True
     )
@@ -146,7 +136,6 @@ async def test_whatsapp_account_is_primary_flag(db_session: AsyncSession):
     db_session.add_all([link1, link2])
     await db_session.commit()
 
-    # Query the links
     result = await db_session.execute(
         select(OrganizationWhatsAppAccount).where(
             OrganizationWhatsAppAccount.organization_id == org.id
@@ -165,12 +154,11 @@ async def test_whatsapp_account_is_primary_flag(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_whatsapp_account_global_flag(db_session: AsyncSession):
     """Test global WhatsApp accounts can be shared across all organizations."""
-    # Create global account
     global_account = WhatsAppAccount(
         phone_number_id="global_phone",
         phone_number="+5511999999999",
         access_token="global_token",
-        is_global=True,  # Marked as global
+        is_global=True,
     )
     db_session.add(global_account)
     await db_session.commit()
@@ -178,7 +166,6 @@ async def test_whatsapp_account_global_flag(db_session: AsyncSession):
 
     assert global_account.is_global is True
 
-    # Link to multiple organizations
     org1 = Organization(name="Org 1")
     org2 = Organization(name="Org 2")
     org3 = Organization(name="Org 3")
@@ -194,7 +181,6 @@ async def test_whatsapp_account_global_flag(db_session: AsyncSession):
 
     await db_session.commit()
 
-    # Verify global account is linked to all 3 orgs (with eager loading)
     result = await db_session.execute(
         select(WhatsAppAccount)
         .where(WhatsAppAccount.id == global_account.id)
@@ -227,17 +213,14 @@ async def test_organization_deletion_removes_links_not_account(db_session: Async
     link_id = link.id
     account_id = account.id
 
-    # Delete organization
     await db_session.delete(org)
     await db_session.commit()
 
-    # Verify link is deleted (CASCADE)
     result = await db_session.execute(
         select(OrganizationWhatsAppAccount).where(OrganizationWhatsAppAccount.id == link_id)
     )
     assert result.scalar_one_or_none() is None
 
-    # Verify account still exists
     result = await db_session.execute(
         select(WhatsAppAccount).where(WhatsAppAccount.id == account_id)
     )
@@ -246,11 +229,9 @@ async def test_organization_deletion_removes_links_not_account(db_session: Async
     assert preserved_account.phone_number_id == "phone123"
 
 
-# WhatsAppSession Tests
 @pytest.mark.asyncio
 async def test_create_whatsapp_session(db_session: AsyncSession):
     """Test creating a WhatsApp session with end client."""
-    # Setup: Create org, architect, and end client
     org = Organization(name="Session Org")
     db_session.add(org)
     await db_session.commit()
@@ -276,7 +257,6 @@ async def test_create_whatsapp_session(db_session: AsyncSession):
     await db_session.commit()
     await db_session.refresh(client)
 
-    # Create session
     session = WhatsAppSession(
         end_client_id=client.id,
         phone_number=client.phone,
@@ -298,7 +278,6 @@ async def test_create_whatsapp_session(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_whatsapp_session_cascade_on_client_delete(db_session: AsyncSession):
     """Test that deleting end client cascades to sessions."""
-    # Setup
     org = Organization(name="Cascade Org")
     db_session.add(org)
     await db_session.commit()
@@ -328,22 +307,18 @@ async def test_whatsapp_session_cascade_on_client_delete(db_session: AsyncSessio
     await db_session.commit()
     session_id = session.id
 
-    # Delete client
     await db_session.delete(client)
     await db_session.commit()
 
-    # Verify session is also deleted (CASCADE)
     result = await db_session.execute(
         select(WhatsAppSession).where(WhatsAppSession.id == session_id)
     )
     assert result.scalar_one_or_none() is None
 
 
-# WhatsAppMessage Tests
 @pytest.mark.asyncio
 async def test_create_whatsapp_message(db_session: AsyncSession):
     """Test creating WhatsApp messages in a session."""
-    # Setup session
     org = Organization(name="Message Org")
     db_session.add(org)
     await db_session.commit()
@@ -373,7 +348,6 @@ async def test_create_whatsapp_message(db_session: AsyncSession):
     await db_session.commit()
     await db_session.refresh(session)
 
-    # Create message
     message = WhatsAppMessage(
         session_id=session.id,
         wa_message_id="wamid.123456",
@@ -396,7 +370,6 @@ async def test_create_whatsapp_message(db_session: AsyncSession):
 @pytest.mark.asyncio
 async def test_whatsapp_message_cascade_on_session_delete(db_session: AsyncSession):
     """Test that deleting session cascades to messages."""
-    # Setup
     org = Organization(name="Msg Cascade Org")
     db_session.add(org)
     await db_session.commit()
@@ -440,11 +413,9 @@ async def test_whatsapp_message_cascade_on_session_delete(db_session: AsyncSessi
     await db_session.commit()
     message_id = message.id
 
-    # Delete session
     await db_session.delete(session)
     await db_session.commit()
 
-    # Verify message is also deleted (CASCADE)
     result = await db_session.execute(
         select(WhatsAppMessage).where(WhatsAppMessage.id == message_id)
     )
@@ -454,7 +425,6 @@ async def test_whatsapp_message_cascade_on_session_delete(db_session: AsyncSessi
 @pytest.mark.asyncio
 async def test_whatsapp_session_relationship_with_messages(db_session: AsyncSession):
     """Test session relationship with multiple messages."""
-    # Setup
     org = Organization(name="Rel Org")
     db_session.add(org)
     await db_session.commit()
@@ -484,7 +454,6 @@ async def test_whatsapp_session_relationship_with_messages(db_session: AsyncSess
     await db_session.commit()
     await db_session.refresh(session)
 
-    # Create multiple messages
     msg1 = WhatsAppMessage(
         session_id=session.id,
         wa_message_id="wamid.1",
@@ -502,7 +471,6 @@ async def test_whatsapp_session_relationship_with_messages(db_session: AsyncSess
     db_session.add_all([msg1, msg2])
     await db_session.commit()
 
-    # Refresh and verify relationship
     await db_session.refresh(session, ["messages"])
     assert len(session.messages) == 2
     assert {msg.wa_message_id for msg in session.messages} == {"wamid.1", "wamid.2"}
@@ -523,17 +491,15 @@ async def test_unique_constraint_org_whatsapp_account(db_session: AsyncSession):
     await db_session.commit()
     await db_session.refresh(account)
 
-    # Create first link
     link1 = OrganizationWhatsAppAccount(
         organization_id=org.id, whatsapp_account_id=account.id, is_primary=True
     )
     db_session.add(link1)
     await db_session.commit()
 
-    # Try to create duplicate link (same org + same account)
     link2 = OrganizationWhatsAppAccount(
         organization_id=org.id, whatsapp_account_id=account.id, is_primary=False
     )
     db_session.add(link2)
-    with pytest.raises(Exception):  # IntegrityError - unique constraint
+    with pytest.raises(Exception):
         await db_session.commit()

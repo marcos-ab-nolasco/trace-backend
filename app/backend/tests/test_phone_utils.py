@@ -7,7 +7,6 @@ from src.services.briefing.phone_utils import (
 )
 
 
-# Normalization tests
 def test_normalize_phone_with_formatting():
     """Test normalizing phone with standard Brazilian formatting."""
     assert normalize_phone("(11) 98765-4321") == "+5511987654321"
@@ -47,7 +46,6 @@ def test_normalize_phone_various_formatting():
         assert normalize_phone(input_phone) == expected
 
 
-# Validation tests
 def test_validate_mobile_phone():
     """Test validation of valid mobile phone."""
     is_valid, phone_type = validate_brazilian_phone("+5511987654321")
@@ -85,7 +83,7 @@ def test_validate_invalid_ddd():
 
 def test_validate_various_valid_ddds():
     """Test validation with various valid Brazilian DDDs."""
-    valid_ddds = ["11", "21", "41", "51", "85", "91"]  # Sample of valid DDDs
+    valid_ddds = ["11", "21", "41", "51", "85", "91"]
 
     for ddd in valid_ddds:
         is_valid, phone_type = validate_brazilian_phone(f"+55{ddd}987654321")
@@ -107,7 +105,6 @@ def test_validate_unformatted_phone():
     assert phone_type == "mobile"
 
 
-# Display formatting tests
 def test_format_mobile_phone_display():
     """Test formatting mobile phone for display."""
     assert format_phone_display("+5511987654321") == "+55 (11) 98765-4321"

@@ -26,7 +26,6 @@ def configure_logging() -> None:
         console_handler.setFormatter(formatter)
     console_handler.setLevel(settings.LOG_LEVEL)
 
-    # Configure root logger "src" to capture all application logs
     log_name = "src"
 
     log = logging.getLogger(log_name)

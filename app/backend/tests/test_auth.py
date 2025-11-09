@@ -31,7 +31,7 @@ async def test_register_architect(client: AsyncClient, db_session: AsyncSession)
     assert data["email"] == "newarchitect@example.com"
     assert data["full_name"] == "New Architect"
     assert data["phone"] == "+5511988888888"
-    assert data["is_authorized"] is True  # defaults to authorized after signup
+    assert data["is_authorized"] is True
     assert "organization_id" in data
 
 
@@ -57,7 +57,6 @@ async def test_register_architect_auto_adds_phone(
     organization_id = data["organization_id"]
     architect_id = data["id"]
 
-    # Verify authorized phone was created
     result = await db_session.execute(
         select(AuthorizedPhone).where(
             AuthorizedPhone.organization_id == organization_id,

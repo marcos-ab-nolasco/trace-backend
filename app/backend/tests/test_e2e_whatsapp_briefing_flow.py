@@ -13,6 +13,7 @@ from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
+from src.db.models.template_version import TemplateVersion
 
 TEST_TOKEN_ABC = "gAAAAABpD51IfAJp9XpUYWHmCx0gMDsRH0khVM99XovlHDcjkQLVr77FZ0Xsqm7rfgDNVW2edr4UnGTBzcvF7bVgJ9ptkKvJyg=="
 
@@ -26,14 +27,12 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
     test_template: BriefingTemplate,
 ):
     """Test complete E2E flow: architect initiates briefing, client answers all questions."""
-    # Setup: Add WhatsApp settings to organization
     test_organization.settings = {
         "phone_number_id": "test_phone_123",
         "access_token": TEST_TOKEN_ABC,
     }
     db_session.add(test_organization)
 
-    # Add authorized phone
     auth_phone = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
@@ -43,12 +42,10 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
     db_session.add(auth_phone)
     await db_session.commit()
 
-    # Mock extraction and WhatsApp services
     with (
         patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction,
         patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp,
     ):
-        # Configure extraction mock
         mock_extraction_instance = AsyncMock()
         mock_extraction_instance.extract_client_info.return_value = type(
             "ExtractedInfo",
@@ -62,7 +59,6 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
         )()
         mock_extraction.return_value = mock_extraction_instance
 
-        # Configure WhatsApp mock
         mock_whatsapp_instance = AsyncMock()
         mock_whatsapp_instance.send_text_message.return_value = {
             "success": True,
@@ -70,7 +66,6 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
         }
         mock_whatsapp.return_value = mock_whatsapp_instance
 
-        # STEP 1: Architect sends message to initiate briefing
         webhook_payload_init = {
             "object": "whatsapp_business_account",
             "entry": [
@@ -102,16 +97,14 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
         response = await client.post("/api/webhooks/whatsapp", json=webhook_payload_init)
         assert response.status_code == 200
 
-        # Verify: Briefing created
         result = await db_session.execute(
             select(Briefing).join(EndClient).where(EndClient.phone == "+5511999888777")
         )
         briefing = result.scalar_one()
         assert briefing.status == BriefingStatus.IN_PROGRESS
-        assert briefing.current_question_order == 1  # Starts at question 1
+        assert briefing.current_question_order == 1
         assert briefing.answers == {}
 
-        # Verify: EndClient created
         result = await db_session.execute(
             select(EndClient).where(EndClient.phone == "+5511999888777")
         )
@@ -119,15 +112,12 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
         assert end_client.name == "João Silva"
         assert end_client.organization_id == test_organization.id
 
-        # Verify: First question sent to CLIENT (not architect)
         mock_whatsapp_instance.send_text_message.assert_called()
         last_call = mock_whatsapp_instance.send_text_message.call_args
-        assert last_call.kwargs["to"] == "+5511999888777"  # Sent to client
+        assert last_call.kwargs["to"] == "+5511999888777"
 
-        # Reset mock for next steps
         mock_whatsapp_instance.reset_mock()
 
-        # STEP 2: Client answers question 1
         webhook_payload_q1 = {
             "object": "whatsapp_business_account",
             "entry": [
@@ -163,7 +153,6 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
         assert briefing.answers["1"] == "Casa de 150m2"
         assert briefing.status == BriefingStatus.IN_PROGRESS
 
-        # STEP 3: Client answers question 2
         mock_whatsapp_instance.reset_mock()
         webhook_payload_q2 = {
             "object": "whatsapp_business_account",
@@ -200,7 +189,6 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
         assert briefing.answers["2"] == "3 quartos"
         assert briefing.status == BriefingStatus.IN_PROGRESS
 
-        # STEP 4: Client answers question 3 (last question)
         mock_whatsapp_instance.reset_mock()
         webhook_payload_q3 = {
             "object": "whatsapp_business_account",
@@ -231,10 +219,9 @@ async def test_e2e_complete_briefing_flow_from_authorized_phone(
         response = await client.post("/api/webhooks/whatsapp", json=webhook_payload_q3)
         assert response.status_code == 200
 
-        # Verify: Briefing completed
         await db_session.refresh(briefing)
         assert briefing.status == BriefingStatus.COMPLETED
-        assert briefing.current_question_order == 4  # Advanced past last question
+        assert briefing.current_question_order == 4
         assert len(briefing.answers) == 3
         assert "3" in briefing.answers
         assert briefing.answers["3"] == "Sim, tenho o terreno"
@@ -248,7 +235,6 @@ async def test_e2e_extraction_failure_sends_error_to_architect(
     test_architect: Architect,
 ):
     """Test that extraction failure sends error message back to architect."""
-    # Setup
     test_organization.settings = {
         "phone_number_id": "test_phone_123",
         "access_token": TEST_TOKEN_ABC,
@@ -268,7 +254,6 @@ async def test_e2e_extraction_failure_sends_error_to_architect(
         patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction,
         patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp,
     ):
-        # Configure extraction mock to return low confidence
         mock_extraction_instance = AsyncMock()
         mock_extraction_instance.extract_client_info.return_value = type(
             "ExtractedInfo",
@@ -277,12 +262,11 @@ async def test_e2e_extraction_failure_sends_error_to_architect(
                 "name": None,
                 "phone": None,
                 "project_type": None,
-                "confidence": 0.2,  # Low confidence
+                "confidence": 0.2,
             },
         )()
         mock_extraction.return_value = mock_extraction_instance
 
-        # Configure WhatsApp mock
         mock_whatsapp_instance = AsyncMock()
         mock_whatsapp_instance.send_text_message.return_value = {
             "success": True,
@@ -290,7 +274,6 @@ async def test_e2e_extraction_failure_sends_error_to_architect(
         }
         mock_whatsapp.return_value = mock_whatsapp_instance
 
-        # Send confusing message from architect
         webhook_payload = {
             "object": "whatsapp_business_account",
             "entry": [
@@ -320,15 +303,13 @@ async def test_e2e_extraction_failure_sends_error_to_architect(
         response = await client.post("/api/webhooks/whatsapp", json=webhook_payload)
         assert response.status_code == 200
 
-        # Verify: No briefing created
         result = await db_session.execute(select(Briefing))
         briefings = result.scalars().all()
         assert len(briefings) == 0
 
-        # Verify: Error message sent back to ARCHITECT (not client)
         mock_whatsapp_instance.send_text_message.assert_called_once()
         call_args = mock_whatsapp_instance.send_text_message.call_args
-        assert call_args.kwargs["to"] == "+5511987654321"  # Sent to architect
+        assert call_args.kwargs["to"] == "+5511987654321"
         assert "não consegui extrair" in call_args.kwargs["text"].lower()
 
 
@@ -341,7 +322,6 @@ async def test_e2e_duplicate_briefing_resumes_existing(
     test_template: BriefingTemplate,
 ):
     """Test that system resumes existing briefing instead of creating duplicate."""
-    # Setup
     test_organization.settings = {
         "phone_number_id": "test_phone_123",
         "access_token": TEST_TOKEN_ABC,
@@ -356,7 +336,6 @@ async def test_e2e_duplicate_briefing_resumes_existing(
     )
     db_session.add(auth_phone)
 
-    # Create existing active briefing for client
     existing_client = EndClient(
         name="João Silva",
         phone="+5511999888777",
@@ -365,9 +344,6 @@ async def test_e2e_duplicate_briefing_resumes_existing(
     )
     db_session.add(existing_client)
     await db_session.flush()
-
-    # Get template version
-    from src.db.models.template_version import TemplateVersion
 
     result = await db_session.execute(
         select(TemplateVersion).where(TemplateVersion.template_id == test_template.id)
@@ -388,14 +364,13 @@ async def test_e2e_duplicate_briefing_resumes_existing(
         patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction,
         patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp,
     ):
-        # Configure mocks
         mock_extraction_instance = AsyncMock()
         mock_extraction_instance.extract_client_info.return_value = type(
             "ExtractedInfo",
             (),
             {
                 "name": "João Silva",
-                "phone": "+5511999888777",  # Same client
+                "phone": "+5511999888777",
                 "project_type": "residencial",
                 "confidence": 0.95,
             },
@@ -409,7 +384,6 @@ async def test_e2e_duplicate_briefing_resumes_existing(
         }
         mock_whatsapp.return_value = mock_whatsapp_instance
 
-        # Architect tries to start new briefing for same client
         webhook_payload = {
             "object": "whatsapp_business_account",
             "entry": [
@@ -441,17 +415,14 @@ async def test_e2e_duplicate_briefing_resumes_existing(
         response = await client.post("/api/webhooks/whatsapp", json=webhook_payload)
         assert response.status_code == 200
 
-        # Verify: Only one briefing exists (the original, resumed)
         result = await db_session.execute(select(Briefing))
         briefings = result.scalars().all()
         assert len(briefings) == 1
         assert briefings[0].id == existing_briefing.id
 
-        # Verify: Next question sent to client (not error to architect)
         mock_whatsapp_instance.send_text_message.assert_called_once()
         call_args = mock_whatsapp_instance.send_text_message.call_args
-        assert call_args.kwargs["to"] == "+5511999888777"  # Client phone, not architect
-        # Should send next question from template, not error message
+        assert call_args.kwargs["to"] == "+5511999888777"
         assert "já possui um briefing ativo" not in call_args.kwargs["text"].lower()
 
 
@@ -461,13 +432,11 @@ async def test_e2e_unknown_phone_ignored(
     db_session: AsyncSession,
 ):
     """Test that messages from unknown phones are ignored."""
-    # No setup - no authorized phones, no clients with briefings
 
     with patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp:
         mock_whatsapp_instance = AsyncMock()
         mock_whatsapp.return_value = mock_whatsapp_instance
 
-        # Send message from unknown phone
         webhook_payload = {
             "object": "whatsapp_business_account",
             "entry": [
@@ -480,7 +449,7 @@ async def test_e2e_unknown_phone_ignored(
                                 "metadata": {"phone_number_id": "test_phone_123"},
                                 "messages": [
                                     {
-                                        "from": "+5511000000000",  # Unknown
+                                        "from": "+5511000000000",
                                         "id": "wamid.unknown",
                                         "timestamp": "1234567890",
                                         "type": "text",
@@ -496,13 +465,10 @@ async def test_e2e_unknown_phone_ignored(
 
         response = await client.post("/api/webhooks/whatsapp", json=webhook_payload)
 
-        # Verify: Returns 200 (to avoid WhatsApp retries)
         assert response.status_code == 200
 
-        # Verify: No briefings created
         result = await db_session.execute(select(Briefing))
         briefings = result.scalars().all()
         assert len(briefings) == 0
 
-        # Verify: No WhatsApp messages sent
         mock_whatsapp_instance.send_text_message.assert_not_called()

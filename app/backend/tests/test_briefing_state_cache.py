@@ -20,7 +20,6 @@ def state_cache_disabled() -> BriefingStateCache:
     return BriefingStateCache(redis_client=None)
 
 
-# Basic cache operations
 @pytest.mark.asyncio
 async def test_set_and_get_state(state_cache: BriefingStateCache):
     """Test setting and getting cached state."""
@@ -56,16 +55,13 @@ async def test_invalidate_state(state_cache: BriefingStateCache):
     briefing_id = uuid4()
     state = {"status": "in_progress"}
 
-    # Cache state
     await state_cache.set_state(briefing_id, state)
     assert await state_cache.get_state(briefing_id) is not None
 
-    # Invalidate
     await state_cache.invalidate_state(briefing_id)
     assert await state_cache.get_state(briefing_id) is None
 
 
-# Current question caching
 @pytest.mark.asyncio
 async def test_set_and_get_current_question(state_cache: BriefingStateCache):
     """Test caching current question order."""
@@ -87,7 +83,6 @@ async def test_get_current_question_not_cached(state_cache: BriefingStateCache):
     assert cached_order is None
 
 
-# Disabled cache behavior
 @pytest.mark.asyncio
 async def test_disabled_cache_set_state(state_cache_disabled: BriefingStateCache):
     """Test that disabled cache doesn't store state."""
@@ -123,7 +118,6 @@ async def test_enabled_cache_enabled_flag(state_cache: BriefingStateCache):
     assert state_cache.enabled is True
 
 
-# Complex state data
 @pytest.mark.asyncio
 async def test_cache_complex_state(state_cache: BriefingStateCache):
     """Test caching complex nested state data."""
@@ -151,7 +145,6 @@ async def test_cache_complex_state(state_cache: BriefingStateCache):
     assert cached_state["metadata"]["client_name"] == "João Silva"
 
 
-# Key generation
 def test_get_key_format(state_cache: BriefingStateCache):
     """Test Redis key format."""
     briefing_id = uuid4()

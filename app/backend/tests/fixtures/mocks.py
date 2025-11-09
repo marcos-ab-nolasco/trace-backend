@@ -9,6 +9,8 @@ from fakeredis.aioredis import FakeRedis
 from pytest_mock import MockerFixture
 
 from src.core.cache.client import get_redis_client
+from src.core.rate_limit import limiter, limiter_authenticated
+from src.schemas.briefing import ExtractedClientInfo
 
 
 @pytest.fixture(autouse=True)
@@ -22,7 +24,6 @@ def avoid_external_requests(mocker: MockerFixture) -> None:
     def fail(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("External HTTP communication disabled for tests")
 
-    # Block real HTTP requests
     mocker.patch("httpx._transports.default.AsyncHTTPTransport.handle_async_request", new=fail)
     mocker.patch("httpx._transports.default.HTTPTransport.handle_request", new=fail)
 
@@ -48,8 +49,6 @@ def mock_extraction_service(mocker: MockerFixture) -> Any:
     Tests should configure the return value like:
         mock_extraction_service.return_value = ExtractedClientInfo(...)
     """
-    from src.schemas.briefing import ExtractedClientInfo
-
     mock = mocker.AsyncMock(
         return_value=ExtractedClientInfo(
             name="Test Client",
@@ -99,12 +98,9 @@ def patch_redis() -> Generator[Any, Any, Any]:
 @pytest.fixture(autouse=True)
 async def clear_redis(patch_redis: Any):
     """Clear Redis cache and rate limit storage before/after each test."""
-    from src.core.rate_limit import limiter, limiter_authenticated
-
     client = get_redis_client()
     await client.flushdb()
 
-    # Clear rate limit storage (memory storage for tests)
     limiter.reset()
     limiter_authenticated.reset()
 

@@ -23,14 +23,11 @@ def normalize_phone(phone: str) -> str:
         >>> normalize_phone("5511987654321")
         '+5511987654321'
     """
-    # Remove all non-digit characters
     digits_only = re.sub(r"\D", "", phone)
 
-    # Add +55 if not present
     if not digits_only.startswith("55"):
         digits_only = "55" + digits_only
 
-    # Ensure it starts with +
     if not digits_only.startswith("+"):
         digits_only = "+" + digits_only
 
@@ -59,16 +56,13 @@ def validate_brazilian_phone(
         >>> validate_brazilian_phone("+5511888")
         (False, 'invalid')
     """
-    # Normalize first
     normalized = normalize_phone(phone)
 
-    # Remove +55 prefix for validation
     if not normalized.startswith("+55"):
         return False, "invalid"
 
-    number = normalized[3:]  # Remove +55
+    number = normalized[3:]
 
-    # Check if DDD is valid (11-99, excluding some invalid ranges)
     if len(number) < 10:
         return False, "invalid"
 
@@ -78,17 +72,14 @@ def validate_brazilian_phone(
     except ValueError:
         return False, "invalid"
 
-    # Valid DDD ranges in Brazil: 11-99, but excluding some
     if not (11 <= ddd_int <= 99):
         return False, "invalid"
 
     remaining = number[2:]
 
-    # Mobile: DDD + 9 + 8 digits = 11 digits total
     if len(remaining) == 9 and remaining[0] == "9":
         return True, "mobile"
 
-    # Landline: DDD + 8 digits = 10 digits total
     if allow_landline and len(remaining) == 8:
         return True, "landline"
 
@@ -113,20 +104,19 @@ def format_phone_display(phone: str) -> str:
     normalized = normalize_phone(phone)
 
     if not normalized.startswith("+55"):
-        return phone  # Return as-is if not Brazilian
+        return phone
 
-    # Remove +55
     number = normalized[3:]
 
-    if len(number) == 11:  # Mobile: (DD) 9XXXX-XXXX
+    if len(number) == 11:
         ddd = number[:2]
         part1 = number[2:7]
         part2 = number[7:]
         return f"+55 ({ddd}) {part1}-{part2}"
-    elif len(number) == 10:  # Landline: (DD) XXXX-XXXX
+    elif len(number) == 10:
         ddd = number[:2]
         part1 = number[2:6]
         part2 = number[6:]
         return f"+55 ({ddd}) {part1}-{part2}"
 
-    return phone  # Return as-is if format doesn't match
+    return phone

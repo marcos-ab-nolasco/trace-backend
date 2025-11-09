@@ -7,7 +7,6 @@ from uuid import UUID
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 
-# Question Schema (embedded in template version)
 class QuestionSchema(BaseModel):
     """Schema for a single question in a template."""
 
@@ -39,7 +38,6 @@ class QuestionSchema(BaseModel):
         return v
 
 
-# Template Version Schemas
 class TemplateVersionBase(BaseModel):
     """Base schema for template version."""
 
@@ -65,7 +63,6 @@ class TemplateVersionRead(TemplateVersionBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-# Briefing Template Schemas
 class BriefingTemplateBase(BaseModel):
     """Base schema for briefing template."""
 

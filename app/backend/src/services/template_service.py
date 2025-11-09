@@ -35,9 +35,7 @@ class TemplateService:
 
     async def _get_project_type(self, slug: str) -> ProjectType | None:
         result = await self.db_session.execute(
-            select(ProjectType).where(
-                ProjectType.slug == slug.lower(), ProjectType.is_active == True  # noqa: E712
-            )
+            select(ProjectType).where(ProjectType.slug == slug.lower(), ProjectType.is_active)
         )
         return result.scalar_one_or_none()
 
@@ -52,7 +50,7 @@ class TemplateService:
 
         filters = [
             or_(
-                BriefingTemplate.is_global == True,  # noqa: E712
+                BriefingTemplate.is_global,
                 BriefingTemplate.organization_id == architect.organization_id,
             )
         ]
@@ -102,7 +100,7 @@ class TemplateService:
                 and_(
                     BriefingTemplate.id == template_id,
                     or_(
-                        BriefingTemplate.is_global == True,  # noqa: E712
+                        BriefingTemplate.is_global,
                         BriefingTemplate.organization_id == architect.organization_id,
                     ),
                 )
@@ -252,9 +250,9 @@ class TemplateService:
 
         filters = [
             TemplateVersion.id == BriefingTemplate.current_version_id,
-            TemplateVersion.is_active == True,  # noqa: E712
+            TemplateVersion.is_active,
             or_(
-                BriefingTemplate.is_global == True,  # noqa: E712
+                BriefingTemplate.is_global,
                 BriefingTemplate.organization_id == architect.organization_id,
             ),
         ]
@@ -298,8 +296,8 @@ class TemplateService:
             )
             .where(
                 TemplateVersion.id == BriefingTemplate.current_version_id,
-                TemplateVersion.is_active == True,  # noqa: E712
-                BriefingTemplate.is_global == True,  # noqa: E712
+                TemplateVersion.is_active,
+                BriefingTemplate.is_global,
             )
             .order_by(TemplateVersion.created_at.desc())
             .limit(1)

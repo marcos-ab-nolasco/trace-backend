@@ -54,7 +54,6 @@ class BriefingStartService:
         Returns:
             Briefing (new or existing)
         """
-        # Step 1: Create or update EndClient
         end_client = await self._create_or_update_client(
             organization_id=organization_id,
             architect_id=architect_id,
@@ -62,12 +61,10 @@ class BriefingStartService:
             phone=client_phone,
         )
 
-        # Step 2: Check for active briefings
         active_briefings = await self._get_active_briefings(end_client.id)
 
-        # Step 3: If active briefings exist, return the most recent one
         if active_briefings:
-            existing_briefing = active_briefings[0]  # Most recent (ordered by created_at DESC)
+            existing_briefing = active_briefings[0]
             logger.info(
                 "Resuming existing briefing: briefing_id=%s client_id=%s",
                 existing_briefing.id,
@@ -75,7 +72,6 @@ class BriefingStartService:
             )
             return existing_briefing
 
-        # Step 4: No active briefings - create new one
         briefing = Briefing(
             end_client_id=end_client.id,
             template_version_id=template_version_id,
@@ -88,8 +84,6 @@ class BriefingStartService:
         try:
             await self.db.flush()
         except IntegrityError as e:
-            # Race condition: another request created a briefing simultaneously
-            # Rollback and fetch the briefing that was created by the other request
             logger.warning(
                 "IntegrityError creating briefing for client %s (race condition): %s",
                 end_client.id,
@@ -97,7 +91,6 @@ class BriefingStartService:
             )
             await self.db.rollback()
 
-            # Fetch the briefing created by the concurrent request
             active_briefings = await self._get_active_briefings(end_client.id)
             if active_briefings:
                 existing_briefing = active_briefings[0]
@@ -108,7 +101,6 @@ class BriefingStartService:
                 )
                 return existing_briefing
 
-            # Should never happen, but re-raise if no briefing found
             raise
 
         logger.info(
@@ -131,7 +123,6 @@ class BriefingStartService:
 
         Handles unique constraint on (organization_id, phone) by updating existing client.
         """
-        # Try to get existing client with same phone in the organization
         result = await self.db.execute(
             select(EndClient).where(
                 EndClient.organization_id == organization_id,
@@ -141,14 +132,12 @@ class BriefingStartService:
         existing_client = result.scalar_one_or_none()
 
         if existing_client:
-            # Update existing client (name and architect_id may have changed)
             logger.info(f"Updating existing client {existing_client.id}")
             existing_client.name = name
-            existing_client.architect_id = architect_id  # Update architect if needed
+            existing_client.architect_id = architect_id
             await self.db.flush()
             return existing_client
 
-        # Create new client
         new_client = EndClient(
             organization_id=organization_id,
             architect_id=architect_id,

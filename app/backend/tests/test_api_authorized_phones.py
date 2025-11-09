@@ -1,5 +1,7 @@
 """Tests for authorized phones API endpoints."""
 
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -19,7 +21,6 @@ async def test_list_authorized_phones(
     auth_headers: dict[str, str],
 ):
     """Test listing authorized phones for the organization."""
-    # Add some phones
     phone1 = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511111111111",
@@ -73,7 +74,6 @@ async def test_add_authorized_phone(
     assert data["is_active"] is True
     assert data["organization_id"] == str(test_organization.id)
 
-    # Verify in database
     result = await db_session.execute(
         select(AuthorizedPhone).where(
             AuthorizedPhone.organization_id == test_organization.id,
@@ -93,7 +93,6 @@ async def test_add_authorized_phone_duplicate_fails(
     auth_headers: dict[str, str],
 ):
     """Test that adding duplicate phone returns error."""
-    # Add phone first
     phone = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
@@ -102,7 +101,6 @@ async def test_add_authorized_phone_duplicate_fails(
     db_session.add(phone)
     await db_session.commit()
 
-    # Try to add again
     response = await client.post(
         "/api/organizations/authorized-phones",
         headers=auth_headers,
@@ -132,7 +130,6 @@ async def test_delete_authorized_phone(
     auth_headers: dict[str, str],
 ):
     """Test deleting an authorized phone."""
-    # Add two phones
     phone1 = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511111111111",
@@ -154,7 +151,6 @@ async def test_delete_authorized_phone(
 
     assert response.status_code == 204
 
-    # Verify deleted
     result = await db_session.execute(
         select(AuthorizedPhone).where(AuthorizedPhone.id == phone1.id)
     )
@@ -170,7 +166,6 @@ async def test_delete_last_phone_fails(
     auth_headers: dict[str, str],
 ):
     """Test that deleting the last phone returns error."""
-    # Add only one phone
     phone = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
@@ -195,8 +190,6 @@ async def test_delete_authorized_phone_not_found(
     auth_headers: dict[str, str],
 ):
     """Test deleting non-existent phone returns 404."""
-    from uuid import uuid4
-
     fake_id = uuid4()
     response = await client.delete(
         f"/api/organizations/authorized-phones/{fake_id}",
@@ -209,8 +202,6 @@ async def test_delete_authorized_phone_not_found(
 @pytest.mark.asyncio
 async def test_delete_authorized_phone_requires_auth(client: AsyncClient):
     """Test that deleting phone requires authentication."""
-    from uuid import uuid4
-
     fake_id = uuid4()
     response = await client.delete(f"/api/organizations/authorized-phones/{fake_id}")
     assert response.status_code == 403
@@ -224,26 +215,23 @@ async def test_cannot_delete_phone_from_another_org(
     auth_headers: dict[str, str],
 ):
     """Test that architect cannot delete phone from another organization."""
-    # Create another organization
     other_org = Organization(name="Other Org")
     db_session.add(other_org)
     await db_session.commit()
     await db_session.refresh(other_org)
 
-    # Add phone to other org
     other_phone = AuthorizedPhone(
         organization_id=other_org.id,
         phone_number="+5511999999999",
-        added_by_architect_id=test_architect.id,  # Same architect but different org
+        added_by_architect_id=test_architect.id,
     )
     db_session.add(other_phone)
     await db_session.commit()
     await db_session.refresh(other_phone)
 
-    # Try to delete it
     response = await client.delete(
         f"/api/organizations/authorized-phones/{other_phone.id}",
         headers=auth_headers,
     )
 
-    assert response.status_code == 404  # Not found because it's not in the architect's org
+    assert response.status_code == 404

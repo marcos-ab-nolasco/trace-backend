@@ -15,13 +15,11 @@ from src.db.models.organization import Organization
 @pytest.mark.asyncio
 async def test_create_architect(db_session):
     """Test creating an architect with authentication fields."""
-    # Create organization first
     org = Organization(name="Test Studio", whatsapp_business_account_id="123")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create architect with authentication fields
     architect = Architect(
         organization_id=org.id,
         email="architect@test.com",
@@ -50,13 +48,11 @@ async def test_create_architect(db_session):
 @pytest.mark.asyncio
 async def test_architect_relationships(db_session):
     """Test architect relationships with organization."""
-    # Setup
     org = Organization(name="Rel Studio", whatsapp_business_account_id="456")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create architect
     architect = Architect(
         organization_id=org.id,
         email="rel@test.com",
@@ -67,10 +63,8 @@ async def test_architect_relationships(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Test relationships
     assert architect.organization.name == "Rel Studio"
 
-    # Refresh org to load architects relationship
     await db_session.refresh(org, ["architects"])
     assert org.architects[0].id == architect.id
 
@@ -92,7 +86,6 @@ async def test_architect_unique_email(db_session):
     db_session.add(architect1)
     await db_session.commit()
 
-    # Try to add another architect with same email (even in different org)
     org2 = Organization(name="Another Studio")
     db_session.add(org2)
     await db_session.commit()
@@ -100,12 +93,12 @@ async def test_architect_unique_email(db_session):
 
     architect2 = Architect(
         organization_id=org2.id,
-        email="unique@test.com",  # Same email
+        email="unique@test.com",
         hashed_password="hashed",
         phone="+5511222222222",
     )
     db_session.add(architect2)
-    with pytest.raises(Exception):  # IntegrityError
+    with pytest.raises(Exception):
         await db_session.commit()
 
 
@@ -148,11 +141,9 @@ async def test_architect_cascade_on_organization_delete(db_session):
     await db_session.commit()
     architect_id = architect.id
 
-    # Delete organization
     await db_session.delete(org)
     await db_session.commit()
 
-    # Verify architect is deleted
     result = await db_session.execute(select(Architect).where(Architect.id == architect_id))
     assert result.scalar_one_or_none() is None
 
@@ -175,7 +166,6 @@ async def test_architect_end_clients_relationship(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Create end clients
     client1 = EndClient(
         organization_id=org.id,
         architect_id=architect.id,
@@ -193,7 +183,6 @@ async def test_architect_end_clients_relationship(db_session):
     db_session.add_all([client1, client2])
     await db_session.commit()
 
-    # Refresh and check relationship
     await db_session.refresh(architect, ["end_clients"])
     assert len(architect.end_clients) == 2
     assert {c.name for c in architect.end_clients} == {"Client One", "Client Two"}
@@ -217,7 +206,6 @@ async def test_architect_created_templates_relationship(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Create template (organization owns it, architect is the creator)
     template = BriefingTemplate(
         organization_id=org.id,
         created_by_architect_id=architect.id,
@@ -228,7 +216,6 @@ async def test_architect_created_templates_relationship(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    # Refresh and check relationship
     await db_session.refresh(architect, ["created_templates"])
     assert len(architect.created_templates) == 1
     assert architect.created_templates[0].name == "Custom Template"
@@ -242,13 +229,11 @@ async def test_architect_required_fields(db_session):
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Missing email
     architect = Architect(
         organization_id=org.id,
-        # email missing
         hashed_password="hashed",
         phone="+5511999999999",
     )
     db_session.add(architect)
-    with pytest.raises(Exception):  # IntegrityError
+    with pytest.raises(Exception):
         await db_session.commit()

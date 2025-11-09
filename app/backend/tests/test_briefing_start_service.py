@@ -1,6 +1,7 @@
 """Tests for BriefingStartService."""
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.architect import Architect
@@ -77,13 +78,8 @@ async def test_start_briefing_creates_or_updates_client(
     test_template_version: TemplateVersion,
 ):
     """Test that start_briefing creates client if not exists."""
-    from sqlalchemy import select
-
-    from src.db.models.end_client import EndClient
-
     service = BriefingStartService(db_session)
 
-    # Start briefing with new client
     briefing = await service.start_briefing(
         organization_id=test_organization.id,
         architect_id=test_architect.id,
@@ -92,7 +88,6 @@ async def test_start_briefing_creates_or_updates_client(
         template_version_id=test_template_version.id,
     )
 
-    # Load the client separately to avoid MissingGreenlet error
     result = await db_session.execute(
         select(EndClient).where(EndClient.id == briefing.end_client_id)
     )
@@ -118,7 +113,6 @@ async def test_start_briefing_updates_existing_client(
     old_name = test_end_client.name
     original_phone = test_end_client.phone
 
-    # Start briefing with same phone but different name
     briefing = await service.start_briefing(
         organization_id=test_organization.id,
         architect_id=test_architect.id,
@@ -142,7 +136,6 @@ async def test_start_briefing_resumes_if_active_briefing_exists(
     test_template_version: TemplateVersion,
 ):
     """Test that starting briefing returns existing one if client has active briefing."""
-    # Create an active briefing
     existing_briefing = Briefing(
         end_client_id=test_end_client.id,
         template_version_id=test_template_version.id,
@@ -156,7 +149,6 @@ async def test_start_briefing_resumes_if_active_briefing_exists(
 
     service = BriefingStartService(db_session)
 
-    # Try to start another briefing for same client - should return existing one
     briefing = await service.start_briefing(
         organization_id=test_organization.id,
         architect_id=test_architect.id,
@@ -165,7 +157,6 @@ async def test_start_briefing_resumes_if_active_briefing_exists(
         template_version_id=test_template_version.id,
     )
 
-    # Should return the existing briefing (resume it)
     assert briefing.id == existing_id
     assert briefing.current_question_order == 2
     assert briefing.answers == {"question_1": "answer_1"}
@@ -180,7 +171,6 @@ async def test_start_briefing_allows_if_previous_completed(
     test_template_version: TemplateVersion,
 ):
     """Test that starting briefing is allowed if previous briefing is completed."""
-    # Create a completed briefing
     completed_briefing = Briefing(
         end_client_id=test_end_client.id,
         template_version_id=test_template_version.id,
@@ -193,7 +183,6 @@ async def test_start_briefing_allows_if_previous_completed(
 
     service = BriefingStartService(db_session)
 
-    # Should succeed - previous is completed
     briefing = await service.start_briefing(
         organization_id=test_organization.id,
         architect_id=test_architect.id,
@@ -216,7 +205,6 @@ async def test_start_briefing_allows_if_previous_cancelled(
     test_template_version: TemplateVersion,
 ):
     """Test that starting briefing is allowed if previous briefing is cancelled."""
-    # Create a cancelled briefing
     cancelled_briefing = Briefing(
         end_client_id=test_end_client.id,
         template_version_id=test_template_version.id,
@@ -229,7 +217,6 @@ async def test_start_briefing_allows_if_previous_cancelled(
 
     service = BriefingStartService(db_session)
 
-    # Should succeed - previous is cancelled
     briefing = await service.start_briefing(
         organization_id=test_organization.id,
         architect_id=test_architect.id,
