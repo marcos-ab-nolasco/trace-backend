@@ -1,9 +1,11 @@
 import pytest
 from httpx import AsyncClient
 from pytest_mock import MockerFixture
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models import Conversation
+from src.core.security import create_access_token, hash_password
+from src.db.models import Conversation, Message
 from src.db.models.architect import Architect
 
 
@@ -102,8 +104,6 @@ async def test_cannot_access_other_user_conversation(
     client: AsyncClient, test_user: Architect, db_session: AsyncSession
 ) -> None:
     """Test that users cannot access conversations from other users."""
-    from src.core.security import create_access_token, hash_password
-
     other_user = Architect(
         organization_id=test_user.organization_id,
         email="other@example.com",
@@ -290,10 +290,6 @@ async def test_delete_conversation_cascades_to_messages(
     db_session: AsyncSession,
 ) -> None:
     """Test that deleting a conversation also deletes its messages."""
-    from sqlalchemy import func, select
-
-    from src.db.models import Message
-
     create_response = await client.post(
         "/chat/conversations",
         json={"title": "Cascade Test", "ai_provider": "openai", "ai_model": "gpt-4"},

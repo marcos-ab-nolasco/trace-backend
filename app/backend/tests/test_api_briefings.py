@@ -1,9 +1,13 @@
 """Tests for briefing CRUD API endpoints."""
 
+import uuid
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.security import hash_password
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.briefing_analytics import BriefingAnalytics
@@ -39,7 +43,6 @@ async def test_briefing_completed(
     test_template: BriefingTemplate,
 ) -> Briefing:
     """Create a completed briefing with analytics."""
-    from datetime import datetime, timedelta, timezone
 
     briefing = Briefing(
         end_client_id=test_end_client.id,
@@ -51,8 +54,8 @@ async def test_briefing_completed(
             "2": "3 quartos",
             "3": "Sim",
         },
-        completed_at=datetime.now(timezone.utc),
-        created_at=datetime.now(timezone.utc) - timedelta(minutes=10),
+        completed_at=datetime.now(UTC),
+        created_at=datetime.now(UTC) - timedelta(minutes=10),
     )
     db_session.add(briefing)
     await db_session.flush()
@@ -102,8 +105,6 @@ async def other_organization_briefing(
     test_template: BriefingTemplate,
 ) -> Briefing:
     """Create a briefing for a different organization to test isolation."""
-    from src.core.security import hash_password
-
     other_org = Organization(
         name="Other Organization",
         whatsapp_business_account_id="999999999",
@@ -335,8 +336,6 @@ async def test_get_briefing_not_found(
     auth_headers: dict[str, str],
 ):
     """Test getting non-existent briefing returns 404."""
-    import uuid
-
     fake_id = uuid.uuid4()
     response = await client.get(
         f"/api/briefings/{fake_id}",
@@ -409,8 +408,6 @@ async def test_complete_briefing_not_found(
     auth_headers: dict[str, str],
 ):
     """Test completing non-existent briefing returns 404."""
-    import uuid
-
     fake_id = uuid.uuid4()
     response = await client.post(
         f"/api/briefings/{fake_id}/complete",
@@ -596,8 +593,6 @@ async def test_cancel_briefing_not_found(
     auth_headers: dict[str, str],
 ):
     """Test cancelling non-existent briefing returns 404."""
-    import uuid
-
     fake_id = uuid.uuid4()
     response = await client.post(
         f"/api/briefings/{fake_id}/cancel",
@@ -694,8 +689,6 @@ async def test_get_analytics_not_found(
     auth_headers: dict[str, str],
 ):
     """Test getting analytics for non-existent briefing returns 404."""
-    import uuid
-
     fake_id = uuid.uuid4()
     response = await client.get(
         f"/api/briefings/{fake_id}/analytics",

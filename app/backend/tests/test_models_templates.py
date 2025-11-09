@@ -4,6 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 
 from src.db.models.architect import Architect
 from src.db.models.briefing_template import BriefingTemplate
@@ -300,8 +301,6 @@ async def test_cascade_delete_template_versions(db_session):
     await db_session.delete(template)
     await db_session.commit()
 
-    from sqlalchemy import select
-
     result = await db_session.execute(
         select(TemplateVersion).where(TemplateVersion.id == version_id)
     )
@@ -361,8 +360,6 @@ async def test_architect_deletion_preserves_templates(db_session):
 
     await db_session.delete(architect)
     await db_session.commit()
-
-    from sqlalchemy import select
 
     result = await db_session.execute(
         select(BriefingTemplate).where(BriefingTemplate.id == template_id)

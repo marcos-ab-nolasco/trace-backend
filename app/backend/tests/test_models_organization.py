@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from src.db.models.architect import Architect
+from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.organization import Organization
 
 
@@ -114,8 +115,6 @@ async def test_organization_architects_relationship(db_session):
 @pytest.mark.asyncio
 async def test_organization_templates_relationship(db_session):
     """Test organization's relationship with templates."""
-    from src.db.models.briefing_template import BriefingTemplate
-
     org = Organization(name="Template Owner Org")
     db_session.add(org)
     await db_session.commit()

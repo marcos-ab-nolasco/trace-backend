@@ -1,17 +1,30 @@
 """WhatsApp webhook endpoints for receiving messages and events."""
 
 import logging
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.core.rate_limit import limiter
+from src.db.models.authorized_phone import AuthorizedPhone
+from src.db.models.organization import Organization
+from src.db.models.whatsapp_message import WhatsAppMessage
 from src.db.session import get_db_session
+from src.services.ai import get_ai_service
+from src.services.briefing.answer_processor import AnswerProcessorService
+from src.services.briefing.briefing_start_service import (
+    BriefingStartService,
+    ClientHasActiveBriefingError,
+)
 from src.services.briefing.extraction_service import ExtractionService
+from src.services.briefing.orchestrator import BriefingOrchestrator
+from src.services.briefing.phone_utils import normalize_phone
+from src.services.template_service import TemplateService
 from src.services.whatsapp.webhook_handler import WebhookHandler
 from src.services.whatsapp.whatsapp_account_service import WhatsAppAccountService
 from src.services.whatsapp.whatsapp_service import WhatsAppService
@@ -134,10 +147,6 @@ async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSessi
         logger.warning("Text message without body")
         return
 
-    from sqlalchemy import select
-
-    from src.db.models.authorized_phone import AuthorizedPhone
-
     result = await db_session.execute(
         select(AuthorizedPhone).where(
             AuthorizedPhone.phone_number == from_number,
@@ -183,17 +192,6 @@ async def _handle_authorized_phone_message(
         phone_number_id: WhatsApp Business phone number ID
         db_session: Database session
     """
-    from sqlalchemy import select
-
-    from src.db.models.organization import Organization
-    from src.services.ai import get_ai_service
-    from src.services.briefing.briefing_start_service import (
-        BriefingStartService,
-        ClientHasActiveBriefingError,
-    )
-    from src.services.briefing.orchestrator import BriefingOrchestrator
-    from src.services.template_service import TemplateService
-
     try:
         result = await db_session.execute(
             select(Organization).where(Organization.id == authorized_phone.organization_id)
@@ -238,8 +236,6 @@ async def _handle_authorized_phone_message(
 
             logger.warning(f"Extraction failed for message from {from_number}")
             return
-
-        from src.services.briefing.phone_utils import normalize_phone
 
         client_phone = normalize_phone(extracted_info.phone)
 
@@ -323,8 +319,6 @@ async def _handle_client_answer(
         phone_number_id: WhatsApp Business phone number ID
         db_session: Database session
     """
-    from src.services.briefing.answer_processor import AnswerProcessorService
-
     processor = AnswerProcessorService(db_session)
     result = await processor.process_client_answer(
         phone_number=from_number,
@@ -358,12 +352,6 @@ async def _handle_status_update(event: dict[str, Any], db_session: AsyncSession)
         event: Parsed status update event
         db_session: Database session for persistence
     """
-    from datetime import datetime
-
-    from sqlalchemy import select
-
-    from src.db.models.whatsapp_message import WhatsAppMessage
-
     wa_message_id = event.get("wa_message_id")
     new_status = event.get("status")
 

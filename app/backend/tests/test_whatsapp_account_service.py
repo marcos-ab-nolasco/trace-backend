@@ -1,5 +1,7 @@
 """Tests for WhatsAppAccountService."""
 
+from uuid import uuid4
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -59,8 +61,6 @@ async def test_get_account_config_raises_when_organization_not_found(
     db_session: AsyncSession,
 ):
     """Test that ValueError is raised when organization is not found."""
-    from uuid import uuid4
-
     service = WhatsAppAccountService(db_session)
 
     with pytest.raises(ValueError, match="Organization not found"):

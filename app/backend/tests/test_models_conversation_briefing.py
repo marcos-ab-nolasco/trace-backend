@@ -3,6 +3,7 @@
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 
 from src.db.models.architect import Architect
 from src.db.models.conversation import Conversation, ConversationType
@@ -259,8 +260,6 @@ async def test_conversation_cascade_on_architect_delete(db_session):
 
     await db_session.delete(architect)
     await db_session.commit()
-
-    from sqlalchemy import select
 
     result = await db_session.execute(
         select(Conversation).where(Conversation.id == conversation_id)

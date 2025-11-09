@@ -7,6 +7,7 @@ reducing database load while maintaining security and data integrity.
 import pytest
 from httpx import AsyncClient
 
+from src.core.security import create_access_token, hash_password
 from src.db.models.architect import Architect
 
 
@@ -45,8 +46,6 @@ async def test_different_users_have_isolated_cache(
 
     Cache should not leak data between users - each user_id has its own cache.
     """
-    from src.core.security import create_access_token, hash_password
-
     second_user = Architect(
         organization_id=test_user.organization_id,
         email="second@example.com",
@@ -94,8 +93,6 @@ async def test_token_refresh_does_not_break_cache(
     """
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
-
-    from src.core.security import create_access_token
 
     new_token = create_access_token(data={"sub": str(test_user.id)})
     new_headers = {"Authorization": f"Bearer {new_token}"}

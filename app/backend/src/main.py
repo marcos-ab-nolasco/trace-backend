@@ -6,8 +6,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from sqlalchemy import text
 
 from src.api import auth, briefings, chat, organizations, templates, whatsapp_webhook
+from src.core.cache import client as cache_client
 from src.core.config import get_settings
 from src.core.lifespan import lifespan
 from src.core.logging_config.middleware import LoggingMiddleware
@@ -73,8 +75,6 @@ async def health_check(
     }
 
     if check_db:
-        from sqlalchemy import text
-
         session_factory = get_async_sessionmaker()
 
         try:
@@ -87,10 +87,8 @@ async def health_check(
             result["error"] = str(e)
 
     if check_redis:
-        from src.core.cache.client import get_redis_client
-
         try:
-            redis_client = get_redis_client()
+            redis_client = cache_client.get_redis_client()
             await cast(Awaitable[bool], redis_client.ping())
             result["redis"] = "connected"
         except Exception as e:

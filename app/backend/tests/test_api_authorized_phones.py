@@ -1,5 +1,7 @@
 """Tests for authorized phones API endpoints."""
 
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -188,8 +190,6 @@ async def test_delete_authorized_phone_not_found(
     auth_headers: dict[str, str],
 ):
     """Test deleting non-existent phone returns 404."""
-    from uuid import uuid4
-
     fake_id = uuid4()
     response = await client.delete(
         f"/api/organizations/authorized-phones/{fake_id}",
@@ -202,8 +202,6 @@ async def test_delete_authorized_phone_not_found(
 @pytest.mark.asyncio
 async def test_delete_authorized_phone_requires_auth(client: AsyncClient):
     """Test that deleting phone requires authentication."""
-    from uuid import uuid4
-
     fake_id = uuid4()
     response = await client.delete(f"/api/organizations/authorized-phones/{fake_id}")
     assert response.status_code == 403

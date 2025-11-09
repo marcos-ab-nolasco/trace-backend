@@ -1,9 +1,12 @@
 """Tests for template CRUD API endpoints."""
 
+from uuid import uuid4
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.security import create_access_token
 from src.db.models.architect import Architect
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.organization import Organization
@@ -93,8 +96,6 @@ async def test_list_templates_unauthenticated(client: AsyncClient):
 @pytest.fixture
 def architect_auth_headers(architect_user: Architect) -> dict[str, str]:
     """Create auth headers for architect user."""
-    from src.core.security import create_access_token
-
     token = create_access_token(data={"sub": str(architect_user.id)})
     return {"Authorization": f"Bearer {token}"}
 
@@ -314,8 +315,6 @@ async def test_get_template_not_found(
     client: AsyncClient, architect_user: Architect, architect_auth_headers: dict[str, str]
 ):
     """Test getting non-existent template returns 404."""
-    from uuid import uuid4
-
     fake_id = uuid4()
     response = await client.get(f"/api/templates/{fake_id}", headers=architect_auth_headers)
 

@@ -1,5 +1,7 @@
 """Tests for AuthorizedPhoneService."""
 
+from uuid import uuid4
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,8 +124,6 @@ async def test_remove_phone_not_found_raises_error(
 ):
     """Test that removing non-existent phone raises PhoneNotFoundError."""
     service = AuthorizedPhoneService(db_session)
-
-    from uuid import uuid4
 
     fake_id = uuid4()
 
@@ -297,8 +297,6 @@ async def test_get_phone_by_id_not_found_raises_error(
 ):
     """Test get_phone_by_id raises error for non-existent phone."""
     service = AuthorizedPhoneService(db_session)
-
-    from uuid import uuid4
 
     fake_id = uuid4()
 

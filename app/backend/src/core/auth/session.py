@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
 import time
@@ -24,8 +25,6 @@ _SESSION_PREFIX = "auth:session"
 
 
 def _hash_token(token: str) -> str:
-    import hashlib
-
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 

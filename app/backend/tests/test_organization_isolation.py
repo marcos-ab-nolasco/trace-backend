@@ -186,12 +186,8 @@ async def test_architecture_has_organization_relationships():
 
     This test documents the expected data model structure for organization isolation.
     """
-    from src.db.models.architect import Architect as ArchitectModel
-    from src.db.models.briefing_template import BriefingTemplate as TemplateModel
-    from src.db.models.end_client import EndClient as EndClientModel
+    assert hasattr(Architect, "organization_id")
+    assert hasattr(EndClient, "organization_id")
+    assert hasattr(BriefingTemplate, "organization_id")
 
-    assert hasattr(ArchitectModel, "organization_id")
-    assert hasattr(EndClientModel, "organization_id")
-    assert hasattr(TemplateModel, "organization_id")
-
-    assert hasattr(ArchitectModel, "organization")
+    assert hasattr(Architect, "organization")

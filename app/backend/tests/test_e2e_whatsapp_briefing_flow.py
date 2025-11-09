@@ -13,6 +13,7 @@ from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
+from src.db.models.template_version import TemplateVersion
 
 TEST_TOKEN_ABC = "gAAAAABpD51IfAJp9XpUYWHmCx0gMDsRH0khVM99XovlHDcjkQLVr77FZ0Xsqm7rfgDNVW2edr4UnGTBzcvF7bVgJ9ptkKvJyg=="
 
@@ -343,8 +344,6 @@ async def test_e2e_duplicate_briefing_resumes_existing(
     )
     db_session.add(existing_client)
     await db_session.flush()
-
-    from src.db.models.template_version import TemplateVersion
 
     result = await db_session.execute(
         select(TemplateVersion).where(TemplateVersion.template_id == test_template.id)

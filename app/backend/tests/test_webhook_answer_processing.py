@@ -12,9 +12,11 @@ from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
+from src.db.models.processed_webhook import ProcessedWebhook
 from src.db.models.template_version import TemplateVersion
 from src.db.models.whatsapp_message import MessageDirection, MessageStatus, WhatsAppMessage
 from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
+from src.services.briefing.answer_processor import AnswerProcessorService
 
 TEST_TOKEN = "gAAAAABpD5SBKMMw3egsVRJ7IWR3jtj5PzRnMyifxeXyWCJmg0gtErDSpZHZOH09gSgvalFlmre05W-8JcMdAswaN7E3zZvifw=="
 
@@ -145,8 +147,6 @@ async def test_receive_first_answer_and_send_next_question(
         new=AsyncMock(return_value={"success": True, "message_id": "wamid.next123"}),
     )
 
-    from src.services.briefing.answer_processor import AnswerProcessorService
-
     processor = AnswerProcessorService(db_session)
     result = await processor.process_client_answer(
         phone_number=test_client.phone,
@@ -200,8 +200,6 @@ async def test_receive_last_answer_and_complete_briefing(
         new=AsyncMock(return_value={"success": True, "message_id": "wamid.completion123"}),
     )
 
-    from src.services.briefing.answer_processor import AnswerProcessorService
-
     processor = AnswerProcessorService(db_session)
     result = await processor.process_client_answer(
         phone_number=test_client.phone,
@@ -247,8 +245,6 @@ async def test_receive_answer_for_optional_question(
         new=AsyncMock(return_value={"success": True, "message_id": "wamid.optional123"}),
     )
 
-    from src.services.briefing.answer_processor import AnswerProcessorService
-
     processor = AnswerProcessorService(db_session)
     result = await processor.process_client_answer(
         phone_number=test_client.phone,
@@ -277,8 +273,6 @@ async def test_create_whatsapp_session_if_not_exists(
         "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
         new=AsyncMock(return_value={"success": True, "message_id": "wamid.new123"}),
     )
-
-    from src.services.briefing.answer_processor import AnswerProcessorService
 
     processor = AnswerProcessorService(db_session)
     result = await processor.process_client_answer(
@@ -310,8 +304,6 @@ async def test_handle_client_without_active_briefing(
         new=AsyncMock(return_value={"success": True, "message_id": "wamid.error123"}),
     )
 
-    from src.services.briefing.answer_processor import AnswerProcessorService
-
     processor = AnswerProcessorService(db_session)
     result = await processor.process_client_answer(
         phone_number=test_client.phone,
@@ -333,7 +325,6 @@ async def test_handle_unknown_phone_number(
     mocker: MockerFixture,
 ):
     """Test handling message from unknown phone number (client doesn't exist)."""
-    from src.services.briefing.answer_processor import AnswerProcessorService
 
     processor = AnswerProcessorService(db_session)
     result = await processor.process_client_answer(
@@ -394,8 +385,6 @@ async def test_concurrent_answers_from_same_client(
         new=AsyncMock(return_value={"success": True, "message_id": "wamid.concurrent123"}),
     )
 
-    from src.services.briefing.answer_processor import AnswerProcessorService
-
     processor = AnswerProcessorService(db_session)
     result1 = await processor.process_client_answer(
         phone_number=test_client.phone,
@@ -443,8 +432,6 @@ async def test_answer_not_saved_when_whatsapp_send_fails(
         new=AsyncMock(side_effect=Exception("WhatsApp API temporarily unavailable")),
     )
 
-    from src.services.briefing.answer_processor import AnswerProcessorService
-
     processor = AnswerProcessorService(db_session)
     with pytest.raises(Exception, match="WhatsApp API temporarily unavailable"):
         await processor.process_client_answer(
@@ -469,8 +456,6 @@ async def test_answer_not_saved_when_whatsapp_send_fails(
     saved_message = result.scalar_one_or_none()
     assert saved_message is not None, "Message should be saved (commits before WhatsApp)"
     assert saved_message.content["text"]["body"] == "Reforma de cozinha"
-
-    from src.db.models.processed_webhook import ProcessedWebhook
 
     result_webhook = await db_session.execute(
         select(ProcessedWebhook).where(ProcessedWebhook.wa_message_id == "wamid.fail_test")
@@ -499,8 +484,6 @@ async def test_duplicate_webhook_does_not_create_duplicate_answers(
         "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
         new=AsyncMock(return_value={"success": True, "message_id": "wamid.next_question"}),
     )
-
-    from src.services.briefing.answer_processor import AnswerProcessorService
 
     processor = AnswerProcessorService(db_session)
     result1 = await processor.process_client_answer(
@@ -556,8 +539,6 @@ async def test_successful_answer_processing_commits_transaction(
         "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
         new=AsyncMock(return_value={"success": True, "message_id": "wamid.success123"}),
     )
-
-    from src.services.briefing.answer_processor import AnswerProcessorService
 
     processor = AnswerProcessorService(db_session)
     result = await processor.process_client_answer(

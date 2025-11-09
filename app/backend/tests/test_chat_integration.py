@@ -7,6 +7,7 @@ invalidation and data consistency. They simulate real user workflows.
 import pytest
 from httpx import AsyncClient
 
+from src.core.security import create_access_token, hash_password
 from src.db.models.architect import Architect
 
 
@@ -239,8 +240,6 @@ async def test_conversation_list_isolation_between_users(
 
     Cache should not leak data between different users.
     """
-    from src.core.security import hash_password
-
     second_user = Architect(
         organization_id=test_user.organization_id,
         email="second@example.com",
@@ -252,8 +251,6 @@ async def test_conversation_list_isolation_between_users(
     db_session.add(second_user)
     await db_session.commit()
     await db_session.refresh(second_user)
-
-    from src.core.security import create_access_token
 
     second_token = create_access_token(data={"sub": str(second_user.id)})
     second_headers = {"Authorization": f"Bearer {second_token}"}
@@ -578,8 +575,6 @@ async def test_message_list_isolation_between_users(
 
     Cache should not leak messages between different users.
     """
-    from src.core.security import create_access_token, hash_password
-
     second_user = Architect(
         organization_id=test_user.organization_id,
         email="second@example.com",

@@ -1,6 +1,7 @@
 """Tests for BriefingStartService."""
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.architect import Architect
@@ -77,10 +78,6 @@ async def test_start_briefing_creates_or_updates_client(
     test_template_version: TemplateVersion,
 ):
     """Test that start_briefing creates client if not exists."""
-    from sqlalchemy import select
-
-    from src.db.models.end_client import EndClient
-
     service = BriefingStartService(db_session)
 
     briefing = await service.start_briefing(

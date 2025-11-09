@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.end_client import EndClient
 from src.db.models.template_version import TemplateVersion
+from src.services.briefing.analytics_service import AnalyticsService
 
 logger = logging.getLogger(__name__)
 
@@ -189,8 +190,6 @@ class BriefingOrchestrator:
         briefing.completed_at = datetime.now()
 
         await self.db_session.flush()
-
-        from src.services.briefing.analytics_service import AnalyticsService
 
         analytics_service = AnalyticsService(self.db_session)
         try:

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Any
 
 import pytest
@@ -201,14 +202,10 @@ async def test_cache_accepts_custom_serializer() -> None:
 
     def dumps(value: Any) -> bytes:
         dumps_calls["count"] += 1
-        import json
-
         return json.dumps(value).encode()
 
     def loads(blob: bytes) -> Any:
         loads_calls["count"] += 1
-        import json
-
         return json.loads(blob.decode())
 
     @redis_cache_decorator(serializer=dumps, deserializer=loads)

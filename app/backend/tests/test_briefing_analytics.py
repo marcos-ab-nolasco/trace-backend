@@ -13,6 +13,7 @@ from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
 from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
+from src.services.briefing.analytics_service import AnalyticsService
 
 
 @pytest.fixture
@@ -124,8 +125,6 @@ async def test_calculate_briefing_metrics(
     completed_briefing: Briefing,
 ):
     """Test calculating metrics for a completed briefing."""
-    from src.services.briefing.analytics_service import AnalyticsService
-
     service = AnalyticsService(db_session)
     metrics = await service.calculate_metrics(completed_briefing.id)
 
@@ -144,7 +143,6 @@ async def test_create_analytics_record_automatically(
     completed_briefing: Briefing,
 ):
     """Test that analytics record is created automatically."""
-    from src.services.briefing.analytics_service import AnalyticsService
 
     service = AnalyticsService(db_session)
     analytics = await service.create_analytics_record(completed_briefing.id)
@@ -184,8 +182,6 @@ async def test_analytics_duration_calculation(
     db_session.add(briefing)
     await db_session.commit()
 
-    from src.services.briefing.analytics_service import AnalyticsService
-
     service = AnalyticsService(db_session)
     metrics = await service.calculate_metrics(briefing.id)
 
@@ -211,8 +207,6 @@ async def test_analytics_completion_rate(
     db_session.add(briefing_full)
     await db_session.flush()
 
-    from src.services.briefing.analytics_service import AnalyticsService
-
     service = AnalyticsService(db_session)
     metrics_full = await service.calculate_metrics(briefing_full.id)
 
@@ -225,7 +219,6 @@ async def test_analytics_identifies_optional_questions_not_answered(
     completed_briefing: Briefing,
 ):
     """Test that analytics identifies which optional questions were skipped."""
-    from src.services.briefing.analytics_service import AnalyticsService
 
     service = AnalyticsService(db_session)
     metrics = await service.calculate_metrics(completed_briefing.id)
@@ -240,7 +233,6 @@ async def test_get_analytics_for_briefing(
     completed_briefing: Briefing,
 ):
     """Test retrieving analytics for a briefing."""
-    from src.services.briefing.analytics_service import AnalyticsService
 
     service = AnalyticsService(db_session)
     created_analytics = await service.create_analytics_record(completed_briefing.id)
@@ -269,8 +261,6 @@ async def test_analytics_not_created_for_incomplete_briefing(
     db_session.add(incomplete_briefing)
     await db_session.commit()
 
-    from src.services.briefing.analytics_service import AnalyticsService
-
     service = AnalyticsService(db_session)
 
     with pytest.raises(ValueError, match="not completed"):
@@ -283,7 +273,6 @@ async def test_analytics_prevents_duplicate_creation(
     completed_briefing: Briefing,
 ):
     """Test that duplicate analytics records are not created."""
-    from src.services.briefing.analytics_service import AnalyticsService
 
     service = AnalyticsService(db_session)
 
