@@ -333,14 +333,14 @@ async def test_e2e_extraction_failure_sends_error_to_architect(
 
 
 @pytest.mark.asyncio
-async def test_e2e_duplicate_briefing_blocked(
+async def test_e2e_duplicate_briefing_resumes_existing(
     client: AsyncClient,
     db_session: AsyncSession,
     test_organization: Organization,
     test_architect: Architect,
     test_template: BriefingTemplate,
 ):
-    """Test that system blocks duplicate briefings for same client."""
+    """Test that system resumes existing briefing instead of creating duplicate."""
     # Setup
     test_organization.settings = {
         "phone_number_id": "test_phone_123",
@@ -441,17 +441,18 @@ async def test_e2e_duplicate_briefing_blocked(
         response = await client.post("/api/webhooks/whatsapp", json=webhook_payload)
         assert response.status_code == 200
 
-        # Verify: Only one briefing exists (the original)
+        # Verify: Only one briefing exists (the original, resumed)
         result = await db_session.execute(select(Briefing))
         briefings = result.scalars().all()
         assert len(briefings) == 1
         assert briefings[0].id == existing_briefing.id
 
-        # Verify: Error message sent to architect
+        # Verify: Next question sent to client (not error to architect)
         mock_whatsapp_instance.send_text_message.assert_called_once()
         call_args = mock_whatsapp_instance.send_text_message.call_args
-        assert call_args.kwargs["to"] == "+5511987654321"
-        assert "já possui um briefing ativo" in call_args.kwargs["text"].lower()
+        assert call_args.kwargs["to"] == "+5511999888777"  # Client phone, not architect
+        # Should send next question from template, not error message
+        assert "já possui um briefing ativo" not in call_args.kwargs["text"].lower()
 
 
 @pytest.mark.asyncio

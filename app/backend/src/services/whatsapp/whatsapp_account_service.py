@@ -68,7 +68,11 @@ class WhatsAppAccountService:
         org_settings = organization.settings or {}
         org_phone_id = org_settings.get("phone_number_id")
         org_access_token_encrypted = org_settings.get("access_token")
-        org_access_token = decrypt_token(org_access_token_encrypted)
+
+        # Only decrypt if token is present
+        org_access_token = None
+        if org_access_token_encrypted:
+            org_access_token = decrypt_token(org_access_token_encrypted)
 
         # Use override if provided, otherwise use org phone_id
         phone_id_to_use = phone_number_id_override or org_phone_id

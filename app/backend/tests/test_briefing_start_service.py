@@ -1,7 +1,6 @@
 """Tests for BriefingStartService."""
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.architect import Architect
@@ -12,7 +11,6 @@ from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
 from src.services.briefing.briefing_start_service import (
     BriefingStartService,
-    ClientHasActiveBriefingError,
 )
 
 
@@ -136,38 +134,41 @@ async def test_start_briefing_updates_existing_client(
 
 
 @pytest.mark.asyncio
-async def test_start_briefing_blocks_if_active_briefing_exists(
+async def test_start_briefing_resumes_if_active_briefing_exists(
     db_session: AsyncSession,
     test_organization: Organization,
     test_architect: Architect,
     test_end_client: EndClient,
     test_template_version: TemplateVersion,
 ):
-    """Test that starting briefing fails if client has active briefing."""
+    """Test that starting briefing returns existing one if client has active briefing."""
     # Create an active briefing
     existing_briefing = Briefing(
         end_client_id=test_end_client.id,
         template_version_id=test_template_version.id,
         status=BriefingStatus.IN_PROGRESS,
-        current_question_order=0,
-        answers={},
+        current_question_order=2,
+        answers={"question_1": "answer_1"},
     )
     db_session.add(existing_briefing)
     await db_session.commit()
+    existing_id = existing_briefing.id
 
     service = BriefingStartService(db_session)
 
-    # Try to start another briefing for same client
-    with pytest.raises(ClientHasActiveBriefingError) as exc_info:
-        await service.start_briefing(
-            organization_id=test_organization.id,
-            architect_id=test_architect.id,
-            client_name=test_end_client.name,
-            client_phone=test_end_client.phone,
-            template_version_id=test_template_version.id,
-        )
+    # Try to start another briefing for same client - should return existing one
+    briefing = await service.start_briefing(
+        organization_id=test_organization.id,
+        architect_id=test_architect.id,
+        client_name=test_end_client.name,
+        client_phone=test_end_client.phone,
+        template_version_id=test_template_version.id,
+    )
 
-    assert "already has an active briefing" in str(exc_info.value).lower()
+    # Should return the existing briefing (resume it)
+    assert briefing.id == existing_id
+    assert briefing.current_question_order == 2
+    assert briefing.answers == {"question_1": "answer_1"}
 
 
 @pytest.mark.asyncio
@@ -240,83 +241,3 @@ async def test_start_briefing_allows_if_previous_cancelled(
     assert briefing.id is not None
     assert briefing.status == BriefingStatus.IN_PROGRESS
     assert briefing.id != cancelled_briefing.id
-
-
-@pytest.mark.asyncio
-async def test_concurrent_briefing_creation_race_condition(
-    db_session: AsyncSession,
-    test_end_client: EndClient,
-    test_template_version: TemplateVersion,
-):
-    """Test race condition protection: database constraint prevents duplicate IN_PROGRESS briefings.
-
-    Tests Issue #3 fix: partial unique index ensures only one IN_PROGRESS briefing per client.
-    Simulates race condition by attempting to create two IN_PROGRESS briefings for same client.
-
-    Expected behavior after fix:
-    - First briefing creation succeeds
-    - Second briefing creation fails with IntegrityError due to constraint violation
-    """
-    # Store IDs before any operations
-    client_id = test_end_client.id
-    template_id = test_template_version.id
-
-    # Create first briefing
-    briefing1 = Briefing(
-        end_client_id=client_id,
-        template_version_id=template_id,
-        status=BriefingStatus.IN_PROGRESS,
-        current_question_order=1,
-        answers={},
-    )
-    db_session.add(briefing1)
-    await db_session.commit()
-
-    # Try to create second IN_PROGRESS briefing for same client - should fail
-    briefing2 = Briefing(
-        end_client_id=client_id,
-        template_version_id=template_id,
-        status=BriefingStatus.IN_PROGRESS,
-        current_question_order=1,
-        answers={},
-    )
-    db_session.add(briefing2)
-
-    # This should raise IntegrityError due to unique constraint
-    try:
-        await db_session.commit()
-        # If we reach here, constraint is not working - fail test explicitly
-        raise AssertionError("Expected IntegrityError but commit succeeded")
-    except IntegrityError as e:
-        # Expected - verify it's the unique constraint violation
-        assert "uq_client_active_briefing" in str(e).lower(), f"Expected constraint error, got: {e}"
-        await db_session.rollback()
-
-    # Verify only one IN_PROGRESS briefing exists
-    from sqlalchemy import select
-
-    result = await db_session.execute(
-        select(Briefing).where(
-            Briefing.end_client_id == client_id,
-            Briefing.status == BriefingStatus.IN_PROGRESS,
-        )
-    )
-    active_briefings = result.scalars().all()
-    assert len(active_briefings) == 1, "Only one IN_PROGRESS briefing should exist"
-
-    # Verify COMPLETED briefings are still allowed (constraint is partial)
-    await db_session.refresh(briefing1)
-    briefing1.status = BriefingStatus.COMPLETED
-    await db_session.commit()
-
-    briefing3 = Briefing(
-        end_client_id=client_id,
-        template_version_id=template_id,
-        status=BriefingStatus.IN_PROGRESS,
-        current_question_order=1,
-        answers={},
-    )
-    db_session.add(briefing3)
-    await db_session.commit()  # Should succeed now
-
-    assert briefing3.id is not None

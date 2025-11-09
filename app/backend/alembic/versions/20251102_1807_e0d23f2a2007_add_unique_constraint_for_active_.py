@@ -26,7 +26,7 @@ def upgrade() -> None:
         'briefings',
         ['end_client_id'],
         unique=True,
-        postgresql_where=sa.text("status = 'IN_PROGRESS'")
+        postgresql_where=sa.text("status = 'in_progress'")
     )
 
 
@@ -35,5 +35,5 @@ def downgrade() -> None:
     op.drop_index(
         'uq_client_active_briefing',
         table_name='briefings',
-        postgresql_where=sa.text("status = 'IN_PROGRESS'")
+        postgresql_where=sa.text("status = 'in_progress'")
     )

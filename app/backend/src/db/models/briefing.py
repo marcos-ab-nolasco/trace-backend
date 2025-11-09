@@ -38,7 +38,7 @@ class Briefing(Base):
             "uq_client_active_briefing",
             "end_client_id",
             unique=True,
-            postgresql_where=text("status = 'IN_PROGRESS'"),
+            postgresql_where=text("status = 'in_progress'"),
         ),
     )
 
