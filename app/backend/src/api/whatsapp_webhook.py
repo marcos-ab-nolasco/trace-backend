@@ -141,7 +141,7 @@ async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSessi
     result = await db_session.execute(
         select(AuthorizedPhone).where(
             AuthorizedPhone.phone_number == from_number,
-            AuthorizedPhone.is_active == True,
+            AuthorizedPhone.is_active,
         )
     )
     authorized_phone = result.scalar_one_or_none()

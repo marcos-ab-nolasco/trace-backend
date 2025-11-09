@@ -1,6 +1,7 @@
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable
 from contextlib import asynccontextmanager
+from typing import cast
 
 from fastapi import FastAPI
 
@@ -12,7 +13,7 @@ log = logging.getLogger(__name__)
 
 async def _check_connection_redis_server() -> None:
     log.debug("Verificando conexão com servidor de cache")
-    await get_redis_client().ping()
+    await cast("Awaitable[bool]", get_redis_client().ping())
 
 
 async def _close_connection_redis_server() -> None:

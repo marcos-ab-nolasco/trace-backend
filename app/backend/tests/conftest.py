@@ -12,7 +12,7 @@ root_path = Path(__file__).parent
 print(f"Loading test environment from: {root_path / '.env.test'}")
 load_dotenv(root_path / ".env.test", override=False)
 
-from src.core.config import get_settings
+from src.core.config import get_settings  # noqa: E402
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -23,4 +23,4 @@ def pytest_configure(config: pytest.Config) -> None:
         pytest.exit("Failed to load test environment config. ENVIRONMENT must be 'test'")
 
 
-from tests.fixtures import *
+from tests.fixtures import *  # noqa: E402, F403

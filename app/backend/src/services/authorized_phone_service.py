@@ -90,7 +90,7 @@ class AuthorizedPhoneService:
         count_result = await self.db.execute(
             select(func.count(AuthorizedPhone.id)).where(
                 AuthorizedPhone.organization_id == organization_id,
-                AuthorizedPhone.is_active == True,
+                AuthorizedPhone.is_active,
             )
         )
         active_count = count_result.scalar_one()
@@ -120,7 +120,7 @@ class AuthorizedPhoneService:
         query = select(AuthorizedPhone).where(AuthorizedPhone.organization_id == organization_id)
 
         if not include_inactive:
-            query = query.where(AuthorizedPhone.is_active == True)
+            query = query.where(AuthorizedPhone.is_active)
 
         query = query.order_by(AuthorizedPhone.created_at.desc())
 
@@ -145,7 +145,7 @@ class AuthorizedPhoneService:
             select(AuthorizedPhone).where(
                 AuthorizedPhone.organization_id == organization_id,
                 AuthorizedPhone.phone_number == phone_number,
-                AuthorizedPhone.is_active == True,
+                AuthorizedPhone.is_active,
             )
         )
         phone = result.scalar_one_or_none()

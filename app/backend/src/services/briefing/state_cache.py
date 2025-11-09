@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from redis.asyncio import Redis
@@ -49,7 +49,7 @@ class BriefingStateCache:
             key = self._get_key(briefing_id)
             data = await self.redis.get(key)
             if data:
-                return json.loads(data)
+                return cast(dict[str, Any], json.loads(data))
         except Exception as exc:
             logger.warning(f"Failed to get briefing state from cache: {exc}")
 

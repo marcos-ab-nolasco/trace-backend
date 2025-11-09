@@ -14,6 +14,8 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.briefing import Briefing
+    from src.db.models.end_client import EndClient
+    from src.db.models.whatsapp_message import WhatsAppMessage
 
 
 class SessionStatus(str, Enum):

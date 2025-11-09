@@ -73,6 +73,7 @@ class OpenAIService(BaseAIService):
             content = message.content
         else:
             parts: list[str] = []
+            part: Any
             for part in message.content or []:
                 if isinstance(part, str):
                     parts.append(part)
