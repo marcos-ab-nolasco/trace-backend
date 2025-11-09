@@ -39,7 +39,7 @@ async def test_briefing_completed(
     test_template: BriefingTemplate,
 ) -> Briefing:
     """Create a completed briefing with analytics."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     briefing = Briefing(
         end_client_id=test_end_client.id,
@@ -51,8 +51,8 @@ async def test_briefing_completed(
             "2": "3 quartos",
             "3": "Sim",
         },
-        completed_at=datetime.utcnow(),
-        created_at=datetime.utcnow() - timedelta(minutes=10),
+        completed_at=datetime.now(timezone.utc),
+        created_at=datetime.now(timezone.utc) - timedelta(minutes=10),
     )
     db_session.add(briefing)
     await db_session.flush()
