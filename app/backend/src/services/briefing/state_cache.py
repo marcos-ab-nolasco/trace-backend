@@ -49,8 +49,8 @@ class BriefingStateCache:
             key = self._get_key(briefing_id)
             data = await self.redis.get(key)
             if data:
-                return json.loads(data)  # type: ignore
-        except Exception as exc:  # noqa: BLE001
+                return json.loads(data)
+        except Exception as exc:
             logger.warning(f"Failed to get briefing state from cache: {exc}")
 
         return None
@@ -71,7 +71,7 @@ class BriefingStateCache:
             data = json.dumps(state, default=str)
             await self.redis.set(key, data, ex=ttl)
             logger.debug(f"Cached briefing state: {briefing_id}")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(f"Failed to cache briefing state: {exc}")
 
     async def invalidate_state(self, briefing_id: UUID) -> None:
@@ -87,7 +87,7 @@ class BriefingStateCache:
             key = self._get_key(briefing_id)
             await self.redis.delete(key)
             logger.debug(f"Invalidated cached state: {briefing_id}")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(f"Failed to invalidate briefing state: {exc}")
 
     async def set_current_question(
@@ -106,7 +106,7 @@ class BriefingStateCache:
         try:
             key = f"briefing:question:{briefing_id}"
             await self.redis.set(key, str(question_order), ex=ttl)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(f"Failed to cache current question: {exc}")
 
     async def get_current_question(self, briefing_id: UUID) -> int | None:
@@ -126,7 +126,7 @@ class BriefingStateCache:
             data = await self.redis.get(key)
             if data:
                 return int(data)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(f"Failed to get current question from cache: {exc}")
 
         return None

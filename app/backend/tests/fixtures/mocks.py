@@ -22,7 +22,6 @@ def avoid_external_requests(mocker: MockerFixture) -> None:
     def fail(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("External HTTP communication disabled for tests")
 
-    # Block real HTTP requests
     mocker.patch("httpx._transports.default.AsyncHTTPTransport.handle_async_request", new=fail)
     mocker.patch("httpx._transports.default.HTTPTransport.handle_request", new=fail)
 
@@ -104,7 +103,6 @@ async def clear_redis(patch_redis: Any):
     client = get_redis_client()
     await client.flushdb()
 
-    # Clear rate limit storage (memory storage for tests)
     limiter.reset()
     limiter_authenticated.reset()
 

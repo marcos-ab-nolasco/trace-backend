@@ -9,38 +9,24 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-# Load .env from project root (two levels up from alembic/)
-# This is only needed when running locally. In Docker, env vars are already injected via env_file.
 env_path = Path(__file__).parent.parent.parent.parent / ".env"
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 
-# Import Base and all models (importing from __init__ ensures all models are loaded)
 from src.db.session import Base
-from src.db.models import *  # noqa: F401, F403
+from src.db.models import *
 from src.core.config import get_settings
 settings = get_settings()
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
 config = context.config
 
-# Override sqlalchemy.url with our settings
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL.get_secret_value())
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
 target_metadata = Base.metadata
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
 
 
 def run_migrations_offline() -> None:

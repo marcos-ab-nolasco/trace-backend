@@ -24,16 +24,12 @@ class TestEncryption:
         """Test that encryption and decryption are reversible."""
         original_token = "test_whatsapp_token_12345"
 
-        # Encrypt the token
         encrypted = encrypt_token(original_token)
 
-        # Verify it's actually encrypted (different from original)
         assert encrypted != original_token
 
-        # Verify Fernet format (starts with "gAAAAA")
         assert encrypted.startswith("gAAAAA")
 
-        # Decrypt and verify we get back the original
         decrypted = decrypt_token(encrypted)
         assert decrypted == original_token
 
@@ -60,10 +56,8 @@ class TestEncryption:
         encrypted1 = encrypt_token(token1)
         encrypted2 = encrypt_token(token2)
 
-        # Different tokens should produce different ciphertext
         assert encrypted1 != encrypted2
 
-        # But both should decrypt correctly
         assert decrypt_token(encrypted1) == token1
         assert decrypt_token(encrypted2) == token2
 
@@ -77,10 +71,8 @@ class TestEncryption:
         encrypted1 = encrypt_token(token)
         encrypted2 = encrypt_token(token)
 
-        # Same token encrypted twice should produce different ciphertext (due to IV)
         assert encrypted1 != encrypted2
 
-        # But both should decrypt to the same value
         assert decrypt_token(encrypted1) == token
         assert decrypt_token(encrypted2) == token
 
@@ -89,33 +81,27 @@ class TestEncryption:
         cipher1 = get_cipher()
         cipher2 = get_cipher()
 
-        # Should return the same cached instance
         assert cipher1 is cipher2
 
     def test_missing_encryption_key_raises_error(self) -> None:
         """Test that missing ENCRYPTION_KEY in settings raises ValueError."""
-        # Clear the cache first
         get_settings.cache_clear()
         get_cipher.cache_clear()
 
-        # Mock settings to return None for ENCRYPTION_KEY
         with patch("src.core.crypto.get_settings") as mock_settings:
             mock_settings.return_value.ENCRYPTION_KEY.get_secret_value.return_value = None
 
             with pytest.raises(ValueError, match="ENCRYPTION_KEY must be configured"):
                 get_cipher()
 
-        # Clean up cache
         get_settings.cache_clear()
         get_cipher.cache_clear()
 
     def test_invalid_encryption_key_raises_error(self) -> None:
         """Test that invalid ENCRYPTION_KEY format raises ValueError."""
-        # Clear the cache first
         get_settings.cache_clear()
         get_cipher.cache_clear()
 
-        # Mock settings to return invalid key
         with patch("src.core.crypto.get_settings") as mock_settings:
             mock_settings.return_value.ENCRYPTION_KEY.get_secret_value.return_value = (
                 "invalid_key_format"
@@ -124,14 +110,12 @@ class TestEncryption:
             with pytest.raises(ValueError, match="Invalid ENCRYPTION_KEY format"):
                 get_cipher()
 
-        # Clean up cache
         get_settings.cache_clear()
         get_cipher.cache_clear()
 
     def test_long_token_encryption(self) -> None:
         """Test encryption of long tokens (e.g., JWT tokens)."""
-        # Simulate a long WhatsApp access token
-        long_token = "EAABsbCS1iHgBO" + "x" * 500  # ~500 chars
+        long_token = "EAABsbCS1iHgBO" + "x" * 500
 
         encrypted = encrypt_token(long_token)
         decrypted = decrypt_token(encrypted)
@@ -162,23 +146,19 @@ class TestCipherKeyRotation:
 
     def test_decryption_fails_with_wrong_key(self) -> None:
         """Test that tokens encrypted with one key cannot be decrypted with another."""
-        # Generate two different keys
         key1 = Fernet.generate_key().decode()
         key2 = Fernet.generate_key().decode()
 
-        # Encrypt with key1
         with patch.dict(os.environ, {"ENCRYPTION_KEY": key1}):
             get_settings.cache_clear()
             get_cipher.cache_clear()
             encrypted = SECRET_TOKEN
 
-        # Try to decrypt with key2 (should fail)
         with patch.dict(os.environ, {"ENCRYPTION_KEY": key2}):
             get_settings.cache_clear()
             get_cipher.cache_clear()
             with pytest.raises(ValueError, match="Failed to decrypt token"):
                 decrypt_token(encrypted)
 
-        # Clean up
         get_settings.cache_clear()
         get_cipher.cache_clear()

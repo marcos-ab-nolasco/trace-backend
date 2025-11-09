@@ -28,14 +28,12 @@ async def test_webhook_detects_authorized_phone_and_starts_briefing(
     test_template: BriefingTemplate,
 ):
     """Test that webhook detects authorized phone and starts briefing."""
-    # Add WhatsApp settings to organization
     test_organization.settings = {
         "phone_number_id": "123456",
         "access_token": TEST_TOKEN_123,
     }
     db_session.add(test_organization)
 
-    # Add authorized phone
     auth_phone = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
@@ -45,7 +43,6 @@ async def test_webhook_detects_authorized_phone_and_starts_briefing(
     db_session.add(auth_phone)
     await db_session.commit()
 
-    # Mock extraction service to return client info
     with patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction:
         mock_service = AsyncMock()
         mock_service.extract_client_info.return_value = type(
@@ -60,7 +57,6 @@ async def test_webhook_detects_authorized_phone_and_starts_briefing(
         )()
         mock_extraction.return_value = mock_service
 
-        # Mock WhatsApp service to avoid real API calls
         with patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp:
             mock_wa_service = AsyncMock()
             mock_wa_service.send_text_message.return_value = {
@@ -69,7 +65,6 @@ async def test_webhook_detects_authorized_phone_and_starts_briefing(
             }
             mock_whatsapp.return_value = mock_wa_service
 
-            # Send webhook from authorized phone
             webhook_payload = {
                 "object": "whatsapp_business_account",
                 "entry": [
@@ -102,7 +97,6 @@ async def test_webhook_detects_authorized_phone_and_starts_briefing(
 
             assert response.status_code == 200
 
-            # Verify briefing was created
             result = await db_session.execute(
                 select(Briefing).join(EndClient).where(EndClient.phone == "+5511999888777")
             )
@@ -111,10 +105,9 @@ async def test_webhook_detects_authorized_phone_and_starts_briefing(
             assert briefing is not None
             assert briefing.status == BriefingStatus.IN_PROGRESS
 
-            # Verify WhatsApp message was sent to client
             mock_wa_service.send_text_message.assert_called_once()
             call_args = mock_wa_service.send_text_message.call_args
-            assert call_args[1]["to"] == "+5511999888777"  # Client phone, not authorized phone
+            assert call_args[1]["to"] == "+5511999888777"
 
 
 @pytest.mark.asyncio
@@ -127,7 +120,6 @@ async def test_webhook_from_client_phone_processes_answer(
     test_template: BriefingTemplate,
 ):
     """Test that webhook from client phone processes answer (existing behavior)."""
-    # Create active briefing
     briefing = Briefing(
         end_client_id=test_end_client.id,
         template_version_id=test_template.current_version_id,
@@ -138,7 +130,6 @@ async def test_webhook_from_client_phone_processes_answer(
     db_session.add(briefing)
     await db_session.commit()
 
-    # Mock WhatsApp service
     with patch("src.services.briefing.answer_processor.WhatsAppService") as mock_whatsapp:
         mock_wa_service = AsyncMock()
         mock_wa_service.send_text_message.return_value = {
@@ -147,7 +138,6 @@ async def test_webhook_from_client_phone_processes_answer(
         }
         mock_whatsapp.return_value = mock_wa_service
 
-        # Send webhook from client phone
         webhook_payload = {
             "object": "whatsapp_business_account",
             "entry": [
@@ -178,7 +168,6 @@ async def test_webhook_from_client_phone_processes_answer(
 
         assert response.status_code == 200
 
-        # Verify answer was processed
         await db_session.refresh(briefing)
         assert "1" in briefing.answers
         assert briefing.answers["1"] == "Casa"
@@ -202,7 +191,7 @@ async def test_webhook_from_unknown_phone_does_nothing(
                             "metadata": {"phone_number_id": "123456"},
                             "messages": [
                                 {
-                                    "from": "+5511000000000",  # Unknown phone
+                                    "from": "+5511000000000",
                                     "id": "wamid.unknown",
                                     "timestamp": "1234567890",
                                     "type": "text",
@@ -218,10 +207,8 @@ async def test_webhook_from_unknown_phone_does_nothing(
 
     response = await client.post("/api/webhooks/whatsapp", json=webhook_payload)
 
-    # Should still return 200 (to avoid WhatsApp retries)
     assert response.status_code == 200
 
-    # Verify no briefing was created
     result = await db_session.execute(select(Briefing))
     briefings = result.scalars().all()
     assert len(briefings) == 0
@@ -235,14 +222,12 @@ async def test_webhook_extraction_failure_sends_error_to_sender(
     test_architect: Architect,
 ):
     """Test that extraction failure sends error message back to authorized phone."""
-    # Add WhatsApp settings to organization
     test_organization.settings = {
         "phone_number_id": "123456",
         "access_token": TEST_TOKEN_123,
     }
     db_session.add(test_organization)
 
-    # Add authorized phone
     auth_phone = AuthorizedPhone(
         organization_id=test_organization.id,
         phone_number="+5511987654321",
@@ -252,7 +237,6 @@ async def test_webhook_extraction_failure_sends_error_to_sender(
     db_session.add(auth_phone)
     await db_session.commit()
 
-    # Mock extraction service to return low confidence
     with patch("src.api.whatsapp_webhook.ExtractionService") as mock_extraction:
         mock_service = AsyncMock()
         mock_service.extract_client_info.return_value = type(
@@ -262,12 +246,11 @@ async def test_webhook_extraction_failure_sends_error_to_sender(
                 "name": None,
                 "phone": None,
                 "project_type": None,
-                "confidence": 0.3,  # Low confidence
+                "confidence": 0.3,
             },
         )()
         mock_extraction.return_value = mock_service
 
-        # Mock WhatsApp service
         with patch("src.api.whatsapp_webhook.WhatsAppService") as mock_whatsapp:
             mock_wa_service = AsyncMock()
             mock_wa_service.send_text_message.return_value = {
@@ -306,8 +289,7 @@ async def test_webhook_extraction_failure_sends_error_to_sender(
 
             assert response.status_code == 200
 
-            # Verify error message was sent back to authorized phone
             mock_wa_service.send_text_message.assert_called_once()
             call_args = mock_wa_service.send_text_message.call_args
-            assert call_args[1]["to"] == "+5511987654321"  # Back to sender
+            assert call_args[1]["to"] == "+5511987654321"
             assert "erro" in call_args[1]["text"].lower() or "dados" in call_args[1]["text"].lower()

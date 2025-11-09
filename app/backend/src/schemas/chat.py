@@ -3,17 +3,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# ===== Conversation Schemas =====
-
 
 class ConversationCreate(BaseModel):
     """Schema for creating a new conversation."""
 
     title: str = Field(..., min_length=1, max_length=255)
     ai_provider: str = Field(default="openai", pattern="^(openai|anthropic|gemini|grok)$")
-    ai_model: str = Field(
-        default="gpt-3.5-turbo", min_length=1, max_length=100
-    )  # gpt-3.5-turbo-0125, gpt-4.1-mini-2025-04-14, gpt-5-nano-2025-08-07
+    ai_model: str = Field(default="gpt-3.5-turbo", min_length=1, max_length=100)
     system_prompt: str | None = Field(default=None)
 
 
@@ -44,9 +40,6 @@ class ConversationList(BaseModel):
 
     conversations: list[ConversationRead]
     total: int
-
-
-# ===== Message Schemas =====
 
 
 class MessageCreate(BaseModel):

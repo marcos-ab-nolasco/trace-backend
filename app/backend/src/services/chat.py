@@ -110,7 +110,6 @@ async def create_conversation(
         conversation_data.ai_model,
     )
 
-    # Invalidate cache for user's conversation list
     await get_user_conversations.invalidate(db, architect_id)
 
     return new_conversation
@@ -146,7 +145,6 @@ async def update_conversation(
     await db.commit()
     await db.refresh(conversation)
 
-    # Invalidate cache for user's conversation list (updated_at changed, affects ordering)
     await get_user_conversations.invalidate(db, architect_id)
 
     return conversation
@@ -170,7 +168,6 @@ async def delete_conversation(db: AsyncSession, conversation_id: UUID, architect
 
     logger.info("Conversation deleted: conv_id=%s architect_id=%s", conversation_id, architect_id)
 
-    # Invalidate cache for user's conversation list
     await get_user_conversations.invalidate(db, architect_id)
 
 
@@ -195,7 +192,6 @@ async def get_conversation_messages(
     Raises:
         HTTPException: 404 if conversation not found, 403 if not authorized
     """
-    # Verify user has access to conversation
     await get_conversation_by_id(db, conversation_id, architect_id)
 
     result = await db.execute(
@@ -223,7 +219,6 @@ async def create_message(
     Raises:
         HTTPException: 404 if conversation not found, 403 if not authorized
     """
-    # Verify architect has access to conversation and get full record
     conversation = await get_conversation_by_id(db, conversation_id, architect_id)
 
     user_message = Message(
@@ -270,7 +265,7 @@ async def create_message(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc),
         ) from exc
-    except Exception as exc:  # noqa: BLE001 - convert unexpected errors to HTTPException
+    except Exception as exc:
         logger.error(
             f"AI request failed: conv_id={conversation_id} provider={conversation.ai_provider} "
             f"error={type(exc).__name__}: {str(exc)}"
@@ -291,7 +286,6 @@ async def create_message(
     await db.commit()
     await db.refresh(assistant_message)
 
-    # Invalidate cache for conversation messages (2 new messages added)
     await get_conversation_messages.invalidate(db, conversation_id, architect_id)
 
     return user_message, assistant_message

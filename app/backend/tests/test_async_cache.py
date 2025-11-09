@@ -9,7 +9,7 @@ def test_sync_functions_are_not_supported() -> None:
     with pytest.raises(TypeError):
 
         @redis_cache_decorator(ttl=60, namespace="test.sync")
-        def sync_add(a: int, b: int) -> int:  # pragma: no cover - definition for decorator
+        def sync_add(a: int, b: int) -> int:
             return a + b
 
 

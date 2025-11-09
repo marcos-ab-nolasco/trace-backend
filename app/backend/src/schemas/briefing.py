@@ -77,7 +77,6 @@ class BriefingRead(BriefingCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-# WhatsApp Briefing Flow Schemas
 class StartBriefingRequest(BaseModel):
     """Request schema for starting a briefing via WhatsApp."""
 
@@ -112,9 +111,6 @@ class StartBriefingResponse(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
-
-
-# CRUD API Schemas
 
 
 class EndClientRead(BaseModel):

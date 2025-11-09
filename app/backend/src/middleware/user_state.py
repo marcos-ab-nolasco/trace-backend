@@ -23,10 +23,9 @@ class UserStateMiddleware(BaseHTTPMiddleware):
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         """Extract architect_id from Authorization header and store in request.state."""
-        # Extract token from Authorization header
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header[7:]  # Remove "Bearer " prefix
+            token = auth_header[7:]
             try:
                 payload = decode_token(token)
                 if payload.get("type") == "access":
@@ -34,8 +33,6 @@ class UserStateMiddleware(BaseHTTPMiddleware):
                     if architect_id:
                         request.state.architect_id = architect_id
             except (ValueError, TypeError):
-                # Invalid token - ignore and continue
-                # The actual authentication will be handled by get_current_architect dependency
                 pass
 
         response = await call_next(request)

@@ -17,9 +17,9 @@ async def test_create_global_template(db_session):
     """Test creating a global (system-wide) template."""
     template = BriefingTemplate(
         name="Reforma Residencial",
-        category="reforma",  # Legacy field, now nullable
+        category="reforma",
         is_global=True,
-        organization_id=None,  # Global templates have no organization
+        organization_id=None,
         description="Template padrão para projetos de reforma residencial",
     )
     db_session.add(template)
@@ -39,7 +39,6 @@ async def test_create_global_template(db_session):
 @pytest.mark.asyncio
 async def test_create_organization_template(db_session):
     """Test creating a template owned by an organization."""
-    # Create organization and architect
     org = Organization(name="Test Org")
     db_session.add(org)
     await db_session.commit()
@@ -55,13 +54,12 @@ async def test_create_organization_template(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Create template (owned by org, created by architect)
     template = BriefingTemplate(
         name="Reforma Custom",
         category="reforma",
         is_global=False,
-        organization_id=org.id,  # Organization owns it
-        created_by_architect_id=architect.id,  # Architect created it
+        organization_id=org.id,
+        created_by_architect_id=architect.id,
         description="Template customizado pela organização",
     )
     db_session.add(template)
@@ -78,7 +76,6 @@ async def test_create_organization_template(db_session):
 @pytest.mark.asyncio
 async def test_template_with_project_type(db_session):
     """Test creating a template with project type (normalized category)."""
-    # Create project type
     project_type = ProjectType(
         slug="residencial", label="Residencial", description="Projetos residenciais", is_active=True
     )
@@ -86,7 +83,6 @@ async def test_template_with_project_type(db_session):
     await db_session.commit()
     await db_session.refresh(project_type)
 
-    # Create template with project type
     template = BriefingTemplate(
         name="Template Residencial",
         is_global=True,
@@ -160,7 +156,6 @@ async def test_template_current_version_relationship(db_session):
     await db_session.commit()
     await db_session.refresh(version1)
 
-    # Set current version
     template.current_version_id = version1.id
     await db_session.commit()
     await db_session.refresh(template, ["current_version"])
@@ -209,7 +204,6 @@ async def test_template_version_deactivation(db_session):
 
     assert version1.is_active is True
 
-    # Create version 2 and deactivate version 1
     version2 = TemplateVersion(
         template_id=template.id, version_number=2, questions=[{"order": 1, "question": "V2"}]
     )
@@ -241,7 +235,6 @@ async def test_template_unique_name_per_organization(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Create first template
     template1 = BriefingTemplate(
         name="My Template",
         category="reforma",
@@ -252,15 +245,14 @@ async def test_template_unique_name_per_organization(db_session):
     db_session.add(template1)
     await db_session.commit()
 
-    # Try to create another template with same name in same organization
     template2 = BriefingTemplate(
-        name="My Template",  # Same name
+        name="My Template",
         category="construcao",
         is_global=False,
-        organization_id=org.id,  # Same organization
+        organization_id=org.id,
     )
     db_session.add(template2)
-    with pytest.raises(Exception):  # IntegrityError - violates unique constraint
+    with pytest.raises(Exception):
         await db_session.commit()
 
 
@@ -274,19 +266,17 @@ async def test_template_unique_name_different_organizations(db_session):
     await db_session.refresh(org1)
     await db_session.refresh(org2)
 
-    # Create template in org1
     template1 = BriefingTemplate(
         name="My Template", is_global=False, organization_id=org1.id, category="reforma"
     )
     db_session.add(template1)
     await db_session.commit()
 
-    # Create template with SAME NAME in org2 (should work)
     template2 = BriefingTemplate(
         name="My Template", is_global=False, organization_id=org2.id, category="construcao"
     )
     db_session.add(template2)
-    await db_session.commit()  # Should succeed - different organizations
+    await db_session.commit()
 
     assert template1.name == template2.name
     assert template1.organization_id != template2.organization_id
@@ -307,11 +297,9 @@ async def test_cascade_delete_template_versions(db_session):
     await db_session.commit()
     version_id = version.id
 
-    # Delete template
     await db_session.delete(template)
     await db_session.commit()
 
-    # Verify version is also deleted
     from sqlalchemy import select
 
     result = await db_session.execute(
@@ -328,12 +316,11 @@ async def test_template_creator_can_be_null(db_session):
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Template without creator (e.g., system-created or creator left)
     template = BriefingTemplate(
         name="No Creator Template",
         is_global=False,
         organization_id=org.id,
-        created_by_architect_id=None,  # No creator
+        created_by_architect_id=None,
         description="Template sem criador identificado",
     )
     db_session.add(template)
@@ -362,7 +349,6 @@ async def test_architect_deletion_preserves_templates(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Create template
     template = BriefingTemplate(
         name="Architect Template",
         is_global=False,
@@ -373,11 +359,9 @@ async def test_architect_deletion_preserves_templates(db_session):
     await db_session.commit()
     template_id = template.id
 
-    # Delete architect
     await db_session.delete(architect)
     await db_session.commit()
 
-    # Verify template still exists but created_by is NULL
     from sqlalchemy import select
 
     result = await db_session.execute(
@@ -386,4 +370,4 @@ async def test_architect_deletion_preserves_templates(db_session):
     preserved_template = result.scalar_one()
     assert preserved_template is not None
     assert preserved_template.organization_id == org.id
-    assert preserved_template.created_by_architect_id is None  # SET NULL
+    assert preserved_template.created_by_architect_id is None

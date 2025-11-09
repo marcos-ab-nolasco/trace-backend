@@ -68,7 +68,6 @@ async def test_health_check_with_ai(client: AsyncClient):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
-    # AI can be "connected" if any provider is available, or "not_configured"
     assert data["ai"] in ["connected", "not_configured"]
 
 
@@ -81,12 +80,10 @@ async def test_health_check_all_checks(client: AsyncClient):
 
     assert response.status_code == 200
     data = response.json()
-    # Status is "healthy" unless there's an actual error (not just "not_configured")
     assert data["status"] in ["healthy", "unhealthy"]
     assert "database" in data
     assert "redis" in data
     assert "ai" in data
-    # If unhealthy, there should be an error
     if data["status"] == "unhealthy":
         assert "error" in data
 

@@ -65,7 +65,7 @@ class AnthropicService(BaseAIService):
                             f"Anthropic retry attempt {attempt.retry_state.attempt_number}/3: model={model}"
                         )
                     response = await client.messages.create(**request_kwargs)
-        except Exception as exc:  # noqa: BLE001 - upstream errors vary
+        except Exception as exc:
             logger.error(
                 f"Anthropic call failed after retries: model={model} error={type(exc).__name__}"
             )
@@ -107,11 +107,9 @@ class AnthropicService(BaseAIService):
 
         client = self._client
 
-        # Get JSON schema from Pydantic model
         schema = response_model.model_json_schema()
         schema_str = json.dumps(schema, indent=2)
 
-        # Build enhanced system prompt with schema instructions
         structured_system = (
             (f"{system_prompt}\n\n" if system_prompt else "")
             + f"""You must respond with valid JSON that matches this schema:
@@ -124,7 +122,6 @@ IMPORTANT:
 - Match the exact field names and types from the schema"""
         )
 
-        # Build messages
         messages = [{"role": "user", "content": prompt}]
         payload = self._build_payload(messages)
 
@@ -148,7 +145,7 @@ IMPORTANT:
                             f"Anthropic structured retry {attempt.retry_state.attempt_number}/3"
                         )
                     response = await client.messages.create(**request_kwargs)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error(
                 f"Anthropic structured call failed: model={model} error={type(exc).__name__}"
             )
@@ -157,7 +154,6 @@ IMPORTANT:
                 detail=f"Failed to generate structured response from Anthropic: {exc}",
             ) from exc
 
-        # Extract text content
         text_parts = [
             block.text
             for block in getattr(response, "content", [])
@@ -171,9 +167,7 @@ IMPORTANT:
                 detail="Anthropic returned empty structured response",
             )
 
-        # Parse JSON and validate against Pydantic model
         try:
-            # Try to extract JSON if wrapped in markdown code blocks
             if content.startswith("```json"):
                 content = content.split("```json")[1].split("```")[0].strip()
             elif content.startswith("```"):

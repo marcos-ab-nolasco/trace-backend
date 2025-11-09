@@ -85,14 +85,12 @@ class AuthorizedPhoneService:
             PhoneNotFoundError: If phone doesn't exist
             MinimumPhonesError: If this is the last phone (minimum 1 required)
         """
-        # Get the phone
         phone = await self.get_phone_by_id(phone_id, organization_id)
 
-        # Check if this is the last active phone
         count_result = await self.db.execute(
             select(func.count(AuthorizedPhone.id)).where(
                 AuthorizedPhone.organization_id == organization_id,
-                AuthorizedPhone.is_active == True,  # noqa: E712
+                AuthorizedPhone.is_active == True,
             )
         )
         active_count = count_result.scalar_one()
@@ -102,7 +100,6 @@ class AuthorizedPhoneService:
                 "Cannot remove the last authorized phone. Organization must have at least 1 authorized phone."
             )
 
-        # Delete the phone
         await self.db.delete(phone)
         await self.db.commit()
 
@@ -123,7 +120,7 @@ class AuthorizedPhoneService:
         query = select(AuthorizedPhone).where(AuthorizedPhone.organization_id == organization_id)
 
         if not include_inactive:
-            query = query.where(AuthorizedPhone.is_active == True)  # noqa: E712
+            query = query.where(AuthorizedPhone.is_active == True)
 
         query = query.order_by(AuthorizedPhone.created_at.desc())
 
@@ -148,7 +145,7 @@ class AuthorizedPhoneService:
             select(AuthorizedPhone).where(
                 AuthorizedPhone.organization_id == organization_id,
                 AuthorizedPhone.phone_number == phone_number,
-                AuthorizedPhone.is_active == True,  # noqa: E712
+                AuthorizedPhone.is_active == True,
             )
         )
         phone = result.scalar_one_or_none()

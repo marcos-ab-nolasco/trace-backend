@@ -23,7 +23,7 @@ class Message(Base):
     conversation_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("conversations.id", ondelete="CASCADE"), index=True
     )
-    role: Mapped[str] = mapped_column(String(20), nullable=False)  # 'user', 'assistant', 'system'
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tokens_used: Mapped[int | None] = mapped_column(Integer, nullable=True)
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -31,7 +31,6 @@ class Message(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    # Relationships
     conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="messages")
 
     def __repr__(self) -> str:

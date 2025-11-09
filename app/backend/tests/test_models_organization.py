@@ -40,20 +40,18 @@ async def test_organization_unique_name(db_session):
     await db_session.commit()
 
     db_session.add(org2)
-    with pytest.raises(Exception):  # IntegrityError
+    with pytest.raises(Exception):
         await db_session.commit()
 
 
 @pytest.mark.asyncio
 async def test_organization_cascade_delete(db_session):
     """Test that deleting organization cascades to architects."""
-    # Create organization
     org = Organization(name="Studio Delete Test", whatsapp_business_account_id="999")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create architect (with email/password directly, no separate User)
     architect = Architect(
         organization_id=org.id,
         email="arch@test.com",
@@ -66,11 +64,9 @@ async def test_organization_cascade_delete(db_session):
     await db_session.commit()
     architect_id = architect.id
 
-    # Delete organization
     await db_session.delete(org)
     await db_session.commit()
 
-    # Verify architect is also deleted (CASCADE)
     result = await db_session.execute(select(Architect).where(Architect.id == architect_id))
     assert result.scalar_one_or_none() is None
 
@@ -95,7 +91,6 @@ async def test_organization_architects_relationship(db_session):
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create multiple architects
     architect1 = Architect(
         organization_id=org.id,
         email="arch1@test.com",
@@ -111,7 +106,6 @@ async def test_organization_architects_relationship(db_session):
     db_session.add_all([architect1, architect2])
     await db_session.commit()
 
-    # Refresh and check relationship
     await db_session.refresh(org, ["architects"])
     assert len(org.architects) == 2
     assert {a.email for a in org.architects} == {"arch1@test.com", "arch2@test.com"}
@@ -127,7 +121,6 @@ async def test_organization_templates_relationship(db_session):
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create template owned by organization
     template = BriefingTemplate(
         organization_id=org.id,
         name="Org Template",
@@ -137,7 +130,6 @@ async def test_organization_templates_relationship(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    # Refresh and check relationship
     await db_session.refresh(org, ["templates"])
     assert len(org.templates) == 1
     assert org.templates[0].name == "Org Template"

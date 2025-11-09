@@ -292,7 +292,7 @@ async def test_cache_concurrent_calls_share_computation() -> None:
     async def worker() -> None:
         try:
             results.append(await slow(5))
-        except Exception as exc:  # pragma: no cover - defensive branch
+        except Exception as exc:
             errors.append(exc)
 
     first = asyncio.create_task(worker())

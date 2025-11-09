@@ -35,7 +35,6 @@ async def list_templates(
         architect_id=architect_id, project_type_slug=project_type
     )
 
-    # Convert to response models
     templates_with_versions = [BriefingTemplateWithVersion.model_validate(t) for t in templates]
 
     return BriefingTemplateList(templates=templates_with_versions, total=len(templates))

@@ -24,7 +24,6 @@ _SESSION_PREFIX = "auth:session"
 
 
 def _hash_token(token: str) -> str:
-    # SHA256 the token so leaked Redis data is less useful.
     import hashlib
 
     return hashlib.sha256(token.encode("utf-8")).hexdigest()

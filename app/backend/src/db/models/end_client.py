@@ -43,10 +43,8 @@ class EndClient(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    # Unique constraint: phone number must be unique per organization (not per architect)
     __table_args__ = (UniqueConstraint("organization_id", "phone", name="uq_organization_phone"),)
 
-    # Relationships
     organization: Mapped["Organization"] = relationship(
         "Organization", back_populates="end_clients"
     )

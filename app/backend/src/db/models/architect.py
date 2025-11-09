@@ -41,7 +41,6 @@ class Architect(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
 
-    # Relationships
     organization: Mapped["Organization"] = relationship("Organization", back_populates="architects")
     end_clients: Mapped[list["EndClient"]] = relationship(
         "EndClient", back_populates="architect", cascade="all, delete-orphan"

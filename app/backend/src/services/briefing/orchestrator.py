@@ -39,7 +39,6 @@ class BriefingOrchestrator:
         Raises:
             ValueError: If client or template not found
         """
-        # Verify client exists
         result = await self.db_session.execute(
             select(EndClient).where(EndClient.id == end_client_id)
         )
@@ -47,7 +46,6 @@ class BriefingOrchestrator:
         if not client:
             raise ValueError(f"EndClient not found: {end_client_id}")
 
-        # Verify template version exists
         result = await self.db_session.execute(
             select(TemplateVersion).where(TemplateVersion.id == template_version_id)
         )
@@ -55,7 +53,6 @@ class BriefingOrchestrator:
         if not template_version:
             raise ValueError(f"TemplateVersion not found: {template_version_id}")
 
-        # Create briefing
         briefing = Briefing(
             end_client_id=end_client_id,
             template_version_id=template_version_id,
@@ -85,13 +82,11 @@ class BriefingOrchestrator:
         Raises:
             ValueError: If briefing not found
         """
-        # Get briefing with template version
         result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
 
-        # Get template version
         result = await self.db_session.execute(
             select(TemplateVersion).where(TemplateVersion.id == briefing.template_version_id)
         )
@@ -99,13 +94,11 @@ class BriefingOrchestrator:
         if not template_version:
             raise ValueError(f"TemplateVersion not found: {briefing.template_version_id}")
 
-        # Find next question
         questions = template_version.questions
         for question in questions:
             if question["order"] == briefing.current_question_order:
                 return dict(question)
 
-        # No more questions
         return None
 
     async def process_answer(
@@ -126,36 +119,30 @@ class BriefingOrchestrator:
         Raises:
             ValueError: If briefing not found or answer is out of order
         """
-        # Get briefing
         result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
 
-        # Check if briefing is still in progress
         if briefing.status != BriefingStatus.IN_PROGRESS:
             raise ValueError(f"Briefing is not in progress: {briefing.status.value}")
 
-        # Verify answering current question
         if question_order != briefing.current_question_order:
             raise ValueError(
                 f"Must answer current question {briefing.current_question_order}, "
                 f"got {question_order}"
             )
 
-        # Store answer
         answers = briefing.answers.copy() if briefing.answers else {}
         answers[str(question_order)] = answer
         briefing.answers = answers
 
-        # Move to next question
         briefing.current_question_order = question_order + 1
 
         if auto_commit:
             await self.db_session.commit()
             await self.db_session.refresh(briefing)
         else:
-            # Only flush changes, caller controls transaction
             await self.db_session.flush()
 
         logger.info(f"Processed answer for briefing {briefing_id}, question {question_order}")
@@ -175,13 +162,11 @@ class BriefingOrchestrator:
         Raises:
             ValueError: If briefing not found or required questions not answered
         """
-        # Get briefing with template version
         result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
 
-        # Get template version
         result = await self.db_session.execute(
             select(TemplateVersion).where(TemplateVersion.id == briefing.template_version_id)
         )
@@ -189,7 +174,6 @@ class BriefingOrchestrator:
         if not template_version:
             raise ValueError(f"TemplateVersion not found: {briefing.template_version_id}")
 
-        # Check all required questions are answered
         required_questions = [
             q["order"] for q in template_version.questions if q.get("required", False)
         ]
@@ -201,13 +185,11 @@ class BriefingOrchestrator:
                 f"Cannot complete briefing: required questions not answered: {missing_required}"
             )
 
-        # Mark as completed
         briefing.status = BriefingStatus.COMPLETED
         briefing.completed_at = datetime.now()
 
         await self.db_session.flush()
 
-        # Create analytics record automatically
         from src.services.briefing.analytics_service import AnalyticsService
 
         analytics_service = AnalyticsService(self.db_session)
@@ -215,14 +197,12 @@ class BriefingOrchestrator:
             await analytics_service.create_analytics_record(briefing_id)
             logger.info(f"Created analytics for completed briefing {briefing_id}")
         except Exception as e:
-            # Don't fail briefing completion if analytics creation fails
             logger.error(f"Failed to create analytics for briefing {briefing_id}: {e}")
 
         if auto_commit:
             await self.db_session.commit()
             await self.db_session.refresh(briefing)
         else:
-            # Only flush changes, caller controls transaction
             await self.db_session.flush()
 
         logger.info(f"Completed briefing {briefing_id}")
@@ -265,13 +245,11 @@ class BriefingOrchestrator:
         Raises:
             ValueError: If briefing not found
         """
-        # Get briefing with template version
         result = await self.db_session.execute(select(Briefing).where(Briefing.id == briefing_id))
         briefing = result.scalar_one_or_none()
         if not briefing:
             raise ValueError(f"Briefing not found: {briefing_id}")
 
-        # Get template version
         result = await self.db_session.execute(
             select(TemplateVersion).where(TemplateVersion.id == briefing.template_version_id)
         )

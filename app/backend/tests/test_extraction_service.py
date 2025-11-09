@@ -12,7 +12,6 @@ from src.services.ai.openai_service import OpenAIService
 from src.services.briefing.extraction_service import ExtractionService
 
 
-# Test-specific fixtures
 @pytest.fixture
 async def test_templates(
     db_session: AsyncSession, test_architect: Architect
@@ -31,7 +30,6 @@ async def test_templates(
         db_session.add(template)
         await db_session.flush()
 
-        # Create initial version
         version = TemplateVersion(
             template_id=template.id,
             version_number=1,
@@ -65,7 +63,6 @@ def extraction_service(mocker: MockerFixture) -> ExtractionService:
     return ExtractionService(ai_service=mock_ai_service)
 
 
-# Tests for extract_client_info()
 @pytest.mark.asyncio
 async def test_extract_client_info_complete_data(
     extraction_service: ExtractionService, test_architect: Architect, mocker: MockerFixture
@@ -73,7 +70,6 @@ async def test_extract_client_info_complete_data(
     """Test extracting complete client info from well-formatted message."""
     message = "Cliente João Silva, telefone (11) 98765-4321, reforma de apartamento"
 
-    # Mock AI response
     mock_response = ExtractedClientInfo(
         name="João Silva",
         phone="11987654321",
@@ -156,7 +152,7 @@ async def test_extract_client_info_missing_phone(
     assert result.name == "Pedro Costa"
     assert result.phone is None
     assert result.project_type == "incorporacao"
-    assert result.confidence < 0.9  # Lower confidence when data is incomplete
+    assert result.confidence < 0.9
 
 
 @pytest.mark.asyncio

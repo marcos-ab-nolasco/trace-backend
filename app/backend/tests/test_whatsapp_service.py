@@ -26,7 +26,6 @@ async def whatsapp_account(db_session: AsyncSession) -> WhatsAppAccount:
     db_session.add(account)
     await db_session.flush()
 
-    # Create N:N relationship
     link = OrganizationWhatsAppAccount(
         organization_id=org.id,
         whatsapp_account_id=account.id,
@@ -47,11 +46,9 @@ def whatsapp_service(whatsapp_account: WhatsAppAccount) -> WhatsAppService:
     )
 
 
-# Send Text Message Tests
 @pytest.mark.asyncio
 async def test_send_text_message_success(whatsapp_service: WhatsAppService, mocker):
     """Test sending a text message successfully."""
-    # Mock httpx client
     mock_response = Response(
         200,
         json={
@@ -70,7 +67,6 @@ async def test_send_text_message_success(whatsapp_service: WhatsAppService, mock
     assert result["message_id"] == "wamid.test123"
     assert mock_post.called
 
-    # Verify API call
     call_args = mock_post.call_args
     assert "5511999999999" in str(call_args)
     assert "Hello, this is a test message" in str(call_args)
@@ -79,7 +75,6 @@ async def test_send_text_message_success(whatsapp_service: WhatsAppService, mock
 @pytest.mark.asyncio
 async def test_send_text_message_api_error(whatsapp_service: WhatsAppService, mocker):
     """Test handling API error when sending text message."""
-    # Mock httpx client to return error
     mock_response = Response(
         400,
         json={
@@ -120,12 +115,10 @@ async def test_send_text_message_with_preview_url(whatsapp_service: WhatsAppServ
 
     assert result["success"] is True
 
-    # Verify preview_url was sent
     call_json = mock_post.call_args.kwargs.get("json", {})
     assert call_json.get("text", {}).get("preview_url") is True
 
 
-# Send Template Message Tests
 @pytest.mark.asyncio
 async def test_send_template_message_success(whatsapp_service: WhatsAppService, mocker):
     """Test sending a template message successfully."""
@@ -148,7 +141,6 @@ async def test_send_template_message_success(whatsapp_service: WhatsAppService, 
     assert result["success"] is True
     assert result["message_id"] == "wamid.template123"
 
-    # Verify template structure
     call_json = mock_post.call_args.kwargs.get("json", {})
     assert call_json["type"] == "template"
     assert call_json["template"]["name"] == "hello_world"
@@ -183,12 +175,10 @@ async def test_send_template_message_with_components(whatsapp_service: WhatsAppS
 
     assert result["success"] is True
 
-    # Verify components were sent
     call_json = mock_post.call_args.kwargs.get("json", {})
     assert call_json["template"]["components"] == components
 
 
-# Mark as Read Tests
 @pytest.mark.asyncio
 async def test_mark_message_as_read_success(whatsapp_service: WhatsAppService, mocker):
     """Test marking a message as read successfully."""
@@ -202,7 +192,6 @@ async def test_mark_message_as_read_success(whatsapp_service: WhatsAppService, m
 
     assert result["success"] is True
 
-    # Verify API call
     call_json = mock_post.call_args.kwargs.get("json", {})
     assert call_json["messaging_product"] == "whatsapp"
     assert call_json["status"] == "read"
@@ -224,7 +213,6 @@ async def test_mark_message_as_read_api_error(whatsapp_service: WhatsAppService,
     assert "error" in result
 
 
-# Phone Number Formatting Tests
 @pytest.mark.asyncio
 async def test_phone_number_formatting(whatsapp_service: WhatsAppService, mocker):
     """Test phone number is properly formatted (removes + and spaces)."""
@@ -234,26 +222,21 @@ async def test_phone_number_formatting(whatsapp_service: WhatsAppService, mocker
     )
     mock_post = mocker.patch("httpx.AsyncClient.post", return_value=mock_response)
 
-    # Test with +, spaces, and dashes
     await whatsapp_service.send_text_message(to="+55 (11) 99999-9999", text="Test")
 
     call_json = mock_post.call_args.kwargs.get("json", {})
-    # Should be cleaned to just digits
     assert call_json["to"] == "5511999999999"
 
 
-# API URL Construction Tests
 def test_messages_api_url(whatsapp_service: WhatsAppService):
     """Test messages API URL is correctly constructed."""
     expected_url = f"https://graph.facebook.com/v18.0/{whatsapp_service.phone_number_id}/messages"
     assert whatsapp_service._get_messages_url() == expected_url
 
 
-# Retry Logic Tests
 @pytest.mark.asyncio
 async def test_send_message_retries_on_network_error(whatsapp_service: WhatsAppService, mocker):
     """Test service retries on network errors."""
-    # First call fails, second succeeds
     mock_post = mocker.patch(
         "httpx.AsyncClient.post",
         side_effect=[
@@ -266,13 +249,12 @@ async def test_send_message_retries_on_network_error(whatsapp_service: WhatsAppS
 
     assert result["success"] is True
     assert result["message_id"] == "wamid.retry123"
-    assert mock_post.call_count == 2  # Should have retried once
+    assert mock_post.call_count == 2
 
 
 @pytest.mark.asyncio
 async def test_send_message_fails_after_max_retries(whatsapp_service: WhatsAppService, mocker):
     """Test service gives up after max retries."""
-    # All calls fail
     mocker.patch(
         "httpx.AsyncClient.post",
         side_effect=Exception("Network error"),

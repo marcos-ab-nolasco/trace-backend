@@ -22,13 +22,10 @@ class ProcessedWebhook(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, server_default=func.gen_random_uuid())
 
-    # WhatsApp message ID (ensures we don't process same webhook twice)
     wa_message_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
 
-    # Optional: store result for debugging
     result_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
-    # Timestamps
     processed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

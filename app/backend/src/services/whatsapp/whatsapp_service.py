@@ -95,7 +95,6 @@ class WhatsAppService:
         except Exception as e:
             logger.error(f"Error sending WhatsApp message: {str(e)}")
 
-            # Retry on network errors
             if retries < self.MAX_RETRIES:
                 logger.info(f"Retrying... (attempt {retries + 1}/{self.MAX_RETRIES})")
                 return await self._send_request(payload, retries + 1)

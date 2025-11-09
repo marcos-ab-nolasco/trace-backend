@@ -20,13 +20,11 @@ async def test_conversation_list_reflects_create_operations(
 
     This validates that cache invalidation works correctly on CREATE operations.
     """
-    # Initially, user has no conversations
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["total"] == 0
     assert response.json()["conversations"] == []
 
-    # User creates first conversation
     response = await client.post(
         "/chat/conversations",
         json={
@@ -39,7 +37,6 @@ async def test_conversation_list_reflects_create_operations(
     assert response.status_code == 201
     first_conv_id = response.json()["id"]
 
-    # List should now include the new conversation
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
@@ -48,7 +45,6 @@ async def test_conversation_list_reflects_create_operations(
     assert data["conversations"][0]["id"] == first_conv_id
     assert data["conversations"][0]["title"] == "First Chat"
 
-    # User creates second conversation
     response = await client.post(
         "/chat/conversations",
         json={
@@ -61,14 +57,12 @@ async def test_conversation_list_reflects_create_operations(
     assert response.status_code == 201
     second_conv_id = response.json()["id"]
 
-    # List should now include BOTH conversations
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 2
     assert len(data["conversations"]) == 2
 
-    # Verify both are present
     conv_ids = {conv["id"] for conv in data["conversations"]}
     assert conv_ids == {first_conv_id, second_conv_id}
 
@@ -84,7 +78,6 @@ async def test_conversation_list_reflects_update_operations(
     This validates that cache invalidation works correctly on UPDATE operations,
     and that ordering is preserved (updated_at changes affect sort order).
     """
-    # Create two conversations
     response = await client.post(
         "/chat/conversations",
         json={
@@ -108,17 +101,14 @@ async def test_conversation_list_reflects_update_operations(
     )
     assert response.status_code == 201
 
-    # List conversations (populate cache)
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     conversations = response.json()["conversations"]
     assert len(conversations) == 2
 
-    # Find the conversation we want to update
     titles_before = {conv["title"] for conv in conversations}
     assert "Old Title" in titles_before
 
-    # Update the conversation's title
     response = await client.patch(
         f"/chat/conversations/{conv_id}",
         json={"title": "New Title"},
@@ -127,7 +117,6 @@ async def test_conversation_list_reflects_update_operations(
     assert response.status_code == 200
     assert response.json()["title"] == "New Title"
 
-    # List again - must reflect the update
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     conversations = response.json()["conversations"]
@@ -137,7 +126,6 @@ async def test_conversation_list_reflects_update_operations(
     assert "New Title" in titles_after
     assert "Old Title" not in titles_after
 
-    # The updated conversation should be first (most recently updated)
     assert conversations[0]["title"] == "New Title"
 
 
@@ -151,7 +139,6 @@ async def test_conversation_list_reflects_delete_operations(
 
     This validates that cache invalidation works correctly on DELETE operations.
     """
-    # Create three conversations
     conv_ids = []
     for i in range(3):
         response = await client.post(
@@ -166,33 +153,27 @@ async def test_conversation_list_reflects_delete_operations(
         assert response.status_code == 201
         conv_ids.append(response.json()["id"])
 
-    # List should show all three
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["total"] == 3
 
-    # Delete the second conversation
     response = await client.delete(f"/chat/conversations/{conv_ids[1]}", headers=auth_headers)
     assert response.status_code == 204
 
-    # List should now show only two conversations
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 2
     assert len(data["conversations"]) == 2
 
-    # Verify the deleted conversation is not present
     remaining_ids = {conv["id"] for conv in data["conversations"]}
     assert conv_ids[1] not in remaining_ids
     assert conv_ids[0] in remaining_ids
     assert conv_ids[2] in remaining_ids
 
-    # Delete another one
     response = await client.delete(f"/chat/conversations/{conv_ids[0]}", headers=auth_headers)
     assert response.status_code == 204
 
-    # List should now show only one conversation
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
@@ -210,7 +191,6 @@ async def test_conversation_list_ordering_by_updated_at(
 
     When a conversation is updated, it should move to the top of the list.
     """
-    # Create three conversations in sequence
     conv_ids = []
     for i in range(3):
         response = await client.post(
@@ -225,16 +205,14 @@ async def test_conversation_list_ordering_by_updated_at(
         assert response.status_code == 201
         conv_ids.append(response.json()["id"])
 
-    # List should show them in reverse creation order (newest first)
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     conversations = response.json()["conversations"]
     assert len(conversations) == 3
-    assert conversations[0]["title"] == "Chat 3"  # Most recently created
+    assert conversations[0]["title"] == "Chat 3"
     assert conversations[1]["title"] == "Chat 2"
-    assert conversations[2]["title"] == "Chat 1"  # Oldest
+    assert conversations[2]["title"] == "Chat 1"
 
-    # Update the oldest conversation (Chat 1)
     response = await client.patch(
         f"/chat/conversations/{conv_ids[0]}",
         json={"title": "Updated Chat 1"},
@@ -242,11 +220,10 @@ async def test_conversation_list_ordering_by_updated_at(
     )
     assert response.status_code == 200
 
-    # List again - "Updated Chat 1" should now be first
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     conversations = response.json()["conversations"]
-    assert conversations[0]["title"] == "Updated Chat 1"  # Now most recent
+    assert conversations[0]["title"] == "Updated Chat 1"
     assert conversations[1]["title"] == "Chat 3"
     assert conversations[2]["title"] == "Chat 2"
 
@@ -264,7 +241,6 @@ async def test_conversation_list_isolation_between_users(
     """
     from src.core.security import hash_password
 
-    # Create a second user
     second_user = Architect(
         organization_id=test_user.organization_id,
         email="second@example.com",
@@ -277,13 +253,11 @@ async def test_conversation_list_isolation_between_users(
     await db_session.commit()
     await db_session.refresh(second_user)
 
-    # Create token for second user
     from src.core.security import create_access_token
 
     second_token = create_access_token(data={"sub": str(second_user.id)})
     second_headers = {"Authorization": f"Bearer {second_token}"}
 
-    # First user creates a conversation
     response = await client.post(
         "/chat/conversations",
         json={
@@ -296,7 +270,6 @@ async def test_conversation_list_isolation_between_users(
     assert response.status_code == 201
     first_user_conv_id = response.json()["id"]
 
-    # Second user creates a conversation
     response = await client.post(
         "/chat/conversations",
         json={
@@ -309,7 +282,6 @@ async def test_conversation_list_isolation_between_users(
     assert response.status_code == 201
     second_user_conv_id = response.json()["id"]
 
-    # First user lists conversations - should only see their own
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
@@ -317,7 +289,6 @@ async def test_conversation_list_isolation_between_users(
     assert data["conversations"][0]["id"] == first_user_conv_id
     assert data["conversations"][0]["title"] == "First User Chat"
 
-    # Second user lists conversations - should only see their own
     response = await client.get("/chat/conversations", headers=second_headers)
     assert response.status_code == 200
     data = response.json()
@@ -325,7 +296,6 @@ async def test_conversation_list_isolation_between_users(
     assert data["conversations"][0]["id"] == second_user_conv_id
     assert data["conversations"][0]["title"] == "Second User Chat"
 
-    # First user updates their conversation
     response = await client.patch(
         f"/chat/conversations/{first_user_conv_id}",
         json={"title": "Updated First User Chat"},
@@ -333,25 +303,21 @@ async def test_conversation_list_isolation_between_users(
     )
     assert response.status_code == 200
 
-    # Second user's list should remain unchanged
     response = await client.get("/chat/conversations", headers=second_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 1
-    assert data["conversations"][0]["title"] == "Second User Chat"  # Unchanged
+    assert data["conversations"][0]["title"] == "Second User Chat"
 
-    # First user deletes their conversation
     response = await client.delete(
         f"/chat/conversations/{first_user_conv_id}", headers=auth_headers
     )
     assert response.status_code == 204
 
-    # First user should now have empty list
     response = await client.get("/chat/conversations", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["total"] == 0
 
-    # Second user should still have their conversation
     response = await client.get("/chat/conversations", headers=second_headers)
     assert response.status_code == 200
     assert response.json()["total"] == 1
@@ -368,7 +334,6 @@ async def test_multiple_rapid_list_calls_return_consistent_data(
     This validates that caching provides consistency and doesn't introduce
     race conditions or data corruption.
     """
-    # Create a conversation
     response = await client.post(
         "/chat/conversations",
         json={
@@ -381,23 +346,18 @@ async def test_multiple_rapid_list_calls_return_consistent_data(
     assert response.status_code == 201
     conv_id = response.json()["id"]
 
-    # Make 5 rapid list calls
     responses = []
     for _ in range(5):
         response = await client.get("/chat/conversations", headers=auth_headers)
         assert response.status_code == 200
         responses.append(response.json())
 
-    # All responses should be identical
     first_response = responses[0]
     for response in responses[1:]:
         assert response["total"] == first_response["total"]
         assert len(response["conversations"]) == len(first_response["conversations"])
         assert response["conversations"][0]["id"] == conv_id
         assert response["conversations"][0]["title"] == first_response["conversations"][0]["title"]
-
-
-# ==================== MESSAGE CACHE INTEGRATION TESTS ====================
 
 
 @pytest.mark.asyncio
@@ -411,7 +371,6 @@ async def test_message_list_reflects_create_operations(
     This validates that cache invalidation works correctly when new messages
     are added to a conversation (both user and assistant messages).
     """
-    # Create a conversation
     response = await client.post(
         "/chat/conversations",
         json={
@@ -424,13 +383,11 @@ async def test_message_list_reflects_create_operations(
     assert response.status_code == 201
     conv_id = response.json()["id"]
 
-    # Initially, conversation has no messages
     response = await client.get(f"/chat/conversations/{conv_id}/messages", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["total"] == 0
     assert response.json()["messages"] == []
 
-    # User sends first message (triggers AI response)
     response = await client.post(
         f"/chat/conversations/{conv_id}/messages",
         json={
@@ -444,7 +401,6 @@ async def test_message_list_reflects_create_operations(
     assert "user_message" in data
     assert "assistant_message" in data
 
-    # List messages - should now show both user and assistant messages
     response = await client.get(f"/chat/conversations/{conv_id}/messages", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
@@ -454,7 +410,6 @@ async def test_message_list_reflects_create_operations(
     assert data["messages"][0]["content"] == "Hello, how are you?"
     assert data["messages"][1]["role"] == "assistant"
 
-    # User sends second message
     response = await client.post(
         f"/chat/conversations/{conv_id}/messages",
         json={
@@ -465,7 +420,6 @@ async def test_message_list_reflects_create_operations(
     )
     assert response.status_code == 201
 
-    # List messages - should now show all 4 messages (2 user + 2 assistant)
     response = await client.get(f"/chat/conversations/{conv_id}/messages", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
@@ -483,7 +437,6 @@ async def test_message_list_ordering_by_created_at(
 
     This ensures conversation flow makes sense (chronological order).
     """
-    # Create a conversation
     response = await client.post(
         "/chat/conversations",
         json={
@@ -496,7 +449,6 @@ async def test_message_list_ordering_by_created_at(
     assert response.status_code == 201
     conv_id = response.json()["id"]
 
-    # Send three messages in sequence
     messages_content = ["First message", "Second message", "Third message"]
     for content in messages_content:
         response = await client.post(
@@ -509,23 +461,19 @@ async def test_message_list_ordering_by_created_at(
         )
         assert response.status_code == 201
 
-    # List messages - should be in chronological order
     response = await client.get(f"/chat/conversations/{conv_id}/messages", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     messages = data["messages"]
 
-    # Should have 6 messages total (3 user + 3 assistant, interleaved)
     assert len(messages) == 6
 
-    # Verify chronological order and interleaving
     user_messages = [msg for msg in messages if msg["role"] == "user"]
     assert len(user_messages) == 3
     assert user_messages[0]["content"] == "First message"
     assert user_messages[1]["content"] == "Second message"
     assert user_messages[2]["content"] == "Third message"
 
-    # First message should be the first user message
     assert messages[0]["role"] == "user"
     assert messages[0]["content"] == "First message"
 
@@ -540,7 +488,6 @@ async def test_message_list_isolation_between_conversations(
 
     Cache should not leak messages between different conversations.
     """
-    # Create two conversations
     response = await client.post(
         "/chat/conversations",
         json={
@@ -565,7 +512,6 @@ async def test_message_list_isolation_between_conversations(
     assert response.status_code == 201
     conv2_id = response.json()["id"]
 
-    # Send message to first conversation
     response = await client.post(
         f"/chat/conversations/{conv1_id}/messages",
         json={
@@ -576,7 +522,6 @@ async def test_message_list_isolation_between_conversations(
     )
     assert response.status_code == 201
 
-    # Send message to second conversation
     response = await client.post(
         f"/chat/conversations/{conv2_id}/messages",
         json={
@@ -587,25 +532,22 @@ async def test_message_list_isolation_between_conversations(
     )
     assert response.status_code == 201
 
-    # List messages for first conversation
     response = await client.get(f"/chat/conversations/{conv1_id}/messages", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
-    assert data["total"] == 2  # user + assistant
+    assert data["total"] == 2
     user_messages = [msg for msg in data["messages"] if msg["role"] == "user"]
     assert len(user_messages) == 1
     assert user_messages[0]["content"] == "Message for first chat"
 
-    # List messages for second conversation
     response = await client.get(f"/chat/conversations/{conv2_id}/messages", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
-    assert data["total"] == 2  # user + assistant
+    assert data["total"] == 2
     user_messages = [msg for msg in data["messages"] if msg["role"] == "user"]
     assert len(user_messages) == 1
     assert user_messages[0]["content"] == "Message for second chat"
 
-    # Add more messages to first conversation
     response = await client.post(
         f"/chat/conversations/{conv1_id}/messages",
         json={
@@ -616,12 +558,10 @@ async def test_message_list_isolation_between_conversations(
     )
     assert response.status_code == 201
 
-    # First conversation should now have 4 messages
     response = await client.get(f"/chat/conversations/{conv1_id}/messages", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["total"] == 4
 
-    # Second conversation should still have only 2 messages
     response = await client.get(f"/chat/conversations/{conv2_id}/messages", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["total"] == 2
@@ -640,7 +580,6 @@ async def test_message_list_isolation_between_users(
     """
     from src.core.security import create_access_token, hash_password
 
-    # Create a second user
     second_user = Architect(
         organization_id=test_user.organization_id,
         email="second@example.com",
@@ -656,7 +595,6 @@ async def test_message_list_isolation_between_users(
     second_token = create_access_token(data={"sub": str(second_user.id)})
     second_headers = {"Authorization": f"Bearer {second_token}"}
 
-    # First user creates conversation and sends message
     response = await client.post(
         "/chat/conversations",
         json={
@@ -679,7 +617,6 @@ async def test_message_list_isolation_between_users(
     )
     assert response.status_code == 201
 
-    # Second user creates conversation and sends message
     response = await client.post(
         "/chat/conversations",
         json={
@@ -702,7 +639,6 @@ async def test_message_list_isolation_between_users(
     )
     assert response.status_code == 201
 
-    # First user should only see their own messages
     response = await client.get(
         f"/chat/conversations/{first_conv_id}/messages", headers=auth_headers
     )
@@ -712,7 +648,6 @@ async def test_message_list_isolation_between_users(
     assert len(user_messages) == 1
     assert user_messages[0]["content"] == "Message from first user"
 
-    # Second user should only see their own messages
     response = await client.get(
         f"/chat/conversations/{second_conv_id}/messages", headers=second_headers
     )
@@ -722,11 +657,10 @@ async def test_message_list_isolation_between_users(
     assert len(user_messages) == 1
     assert user_messages[0]["content"] == "Message from second user"
 
-    # Second user should NOT be able to access first user's conversation
     response = await client.get(
         f"/chat/conversations/{first_conv_id}/messages", headers=second_headers
     )
-    assert response.status_code == 403  # Forbidden
+    assert response.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -739,7 +673,6 @@ async def test_multiple_rapid_message_list_calls_return_consistent_data(
 
     This validates that message caching provides consistency.
     """
-    # Create conversation and send message
     response = await client.post(
         "/chat/conversations",
         json={
@@ -762,14 +695,12 @@ async def test_multiple_rapid_message_list_calls_return_consistent_data(
     )
     assert response.status_code == 201
 
-    # Make 5 rapid list calls
     responses = []
     for _ in range(5):
         response = await client.get(f"/chat/conversations/{conv_id}/messages", headers=auth_headers)
         assert response.status_code == 200
         responses.append(response.json())
 
-    # All responses should be identical
     first_response = responses[0]
     for response in responses[1:]:
         assert response["total"] == first_response["total"]

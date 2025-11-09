@@ -56,7 +56,6 @@ async def test_list_conversations(
     client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test listing conversations for current user."""
-    # Create two conversations
     await client.post(
         "/chat/conversations",
         json={"title": "Chat 1", "ai_provider": "openai", "ai_model": "gpt-4"},
@@ -68,14 +67,12 @@ async def test_list_conversations(
         headers=auth_headers,
     )
 
-    # List conversations
     response = await client.get("/chat/conversations", headers=auth_headers)
 
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 2
     assert len(data["conversations"]) == 2
-    # Should be ordered by updated_at desc (most recent first)
     assert data["conversations"][0]["title"] == "Chat 2"
     assert data["conversations"][1]["title"] == "Chat 1"
 
@@ -85,7 +82,6 @@ async def test_get_conversation(
     client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test getting a specific conversation."""
-    # Create conversation
     create_response = await client.post(
         "/chat/conversations",
         json={"title": "Test Chat", "ai_provider": "openai", "ai_model": "gpt-4"},
@@ -93,7 +89,6 @@ async def test_get_conversation(
     )
     conversation_id = create_response.json()["id"]
 
-    # Get conversation
     response = await client.get(f"/chat/conversations/{conversation_id}", headers=auth_headers)
 
     assert response.status_code == 200
@@ -109,7 +104,6 @@ async def test_cannot_access_other_user_conversation(
     """Test that users cannot access conversations from other users."""
     from src.core.security import create_access_token, hash_password
 
-    # Create another user (same organization)
     other_user = Architect(
         organization_id=test_user.organization_id,
         email="other@example.com",
@@ -122,7 +116,6 @@ async def test_cannot_access_other_user_conversation(
     await db_session.commit()
     await db_session.refresh(other_user)
 
-    # Create conversation for other user
     other_conversation = Conversation(
         architect_id=other_user.id,
         title="Other User Chat",
@@ -133,7 +126,6 @@ async def test_cannot_access_other_user_conversation(
     await db_session.commit()
     await db_session.refresh(other_conversation)
 
-    # Try to access with test_user's token
     test_user_token = create_access_token(data={"sub": str(test_user.id)})
     headers = {"Authorization": f"Bearer {test_user_token}"}
 
@@ -148,7 +140,6 @@ async def test_update_conversation(
     client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test updating a conversation."""
-    # Create conversation
     create_response = await client.post(
         "/chat/conversations",
         json={"title": "Original Title", "ai_provider": "openai", "ai_model": "gpt-4"},
@@ -156,7 +147,6 @@ async def test_update_conversation(
     )
     conversation_id = create_response.json()["id"]
 
-    # Update conversation
     response = await client.patch(
         f"/chat/conversations/{conversation_id}",
         json={"title": "Updated Title", "system_prompt": "New system prompt"},
@@ -174,7 +164,6 @@ async def test_delete_conversation(
     client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test deleting a conversation."""
-    # Create conversation
     create_response = await client.post(
         "/chat/conversations",
         json={"title": "To Be Deleted", "ai_provider": "openai", "ai_model": "gpt-4"},
@@ -182,13 +171,11 @@ async def test_delete_conversation(
     )
     conversation_id = create_response.json()["id"]
 
-    # Delete conversation
     delete_response = await client.delete(
         f"/chat/conversations/{conversation_id}", headers=auth_headers
     )
     assert delete_response.status_code == 204
 
-    # Verify it's deleted (should return 404)
     get_response = await client.get(f"/chat/conversations/{conversation_id}", headers=auth_headers)
     assert get_response.status_code == 404
 
@@ -241,7 +228,6 @@ async def test_create_message_generates_ai_response(
 
     mock_ai_service.generate_response.assert_awaited_once()
     call_args = mock_ai_service.generate_response.await_args
-    # Args are: (messages, model, system_prompt)
     assert call_args.args[1] == "gpt-4"
     assert call_args.args[2] == "You are helpful."
 
@@ -262,7 +248,6 @@ async def test_list_messages(
     client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
 ) -> None:
     """Test listing messages in a conversation."""
-    # Create conversation
     create_response = await client.post(
         "/chat/conversations",
         json={"title": "Chat History", "ai_provider": "openai", "ai_model": "gpt-4"},
@@ -270,7 +255,6 @@ async def test_list_messages(
     )
     conversation_id = create_response.json()["id"]
 
-    # Create user messages (each will generate an assistant response)
     await client.post(
         f"/chat/conversations/{conversation_id}/messages",
         json={"role": "user", "content": "First message"},
@@ -282,17 +266,14 @@ async def test_list_messages(
         headers=auth_headers,
     )
 
-    # List messages
     response = await client.get(
         f"/chat/conversations/{conversation_id}/messages", headers=auth_headers
     )
 
     assert response.status_code == 200
     data = response.json()
-    # Each user message creates a user + assistant message pair (2 messages x 2 = 4 total)
     assert data["total"] == 4
     assert len(data["messages"]) == 4
-    # Should be ordered by created_at asc (oldest first)
     assert data["messages"][0]["content"] == "First message"
     assert data["messages"][0]["role"] == "user"
     assert data["messages"][1]["role"] == "assistant"
@@ -313,7 +294,6 @@ async def test_delete_conversation_cascades_to_messages(
 
     from src.db.models import Message
 
-    # Create conversation
     create_response = await client.post(
         "/chat/conversations",
         json={"title": "Cascade Test", "ai_provider": "openai", "ai_model": "gpt-4"},
@@ -321,7 +301,6 @@ async def test_delete_conversation_cascades_to_messages(
     )
     conversation_id = create_response.json()["id"]
 
-    # Create messages
     await client.post(
         f"/chat/conversations/{conversation_id}/messages",
         json={"role": "user", "content": "Message 1"},
@@ -333,10 +312,8 @@ async def test_delete_conversation_cascades_to_messages(
         headers=auth_headers,
     )
 
-    # Delete conversation
     await client.delete(f"/chat/conversations/{conversation_id}", headers=auth_headers)
 
-    # Verify messages are also deleted
     result = await db_session.execute(
         select(func.count()).select_from(Message).where(Message.conversation_id == conversation_id)
     )

@@ -45,8 +45,8 @@ async def global_template(db_session: AsyncSession, project_type_residencial) ->
         category="residencial",
         description="Template global para projetos residenciais",
         is_global=True,
-        organization_id=None,  # Global template has no organization
-        created_by_architect_id=None,  # System template
+        organization_id=None,
+        created_by_architect_id=None,
         project_type_id=project_type_residencial.id,
     )
     db_session.add(template)
@@ -129,7 +129,6 @@ async def test_list_templates_with_custom(
     project_type_reforma,
 ):
     """Test listing templates includes architect's custom templates."""
-    # Create custom template for architect
     architect = architect_user
     custom_template = BriefingTemplate(
         name="Meu Template Customizado",
@@ -264,7 +263,6 @@ async def test_create_template_invalid_category(
 
     response = await client.post("/api/templates", json=payload, headers=architect_auth_headers)
 
-    # 400 because service validates ProjectType existence (not a schema validation error)
     assert response.status_code == 400
 
 
@@ -333,7 +331,6 @@ async def test_update_template_creates_new_version(
     project_type_comercial,
 ):
     """Test updating template creates a new version."""
-    # Create custom template
     architect = architect_user
     template = BriefingTemplate(
         name="Template to Update",
@@ -360,7 +357,6 @@ async def test_update_template_creates_new_version(
     await db_session.commit()
     await db_session.refresh(template)
 
-    # Update template
     update_payload = {
         "questions": [
             {"order": 1, "question": "Updated question?", "type": "text", "required": True},
@@ -389,7 +385,6 @@ async def test_update_template_unauthorized(
     project_type_residencial,
 ):
     """Test updating another architect's template returns 403."""
-    # Create another organization and architect
     other_org = Organization(name="Other Firm")
     db_session.add(other_org)
     await db_session.flush()
@@ -404,7 +399,6 @@ async def test_update_template_unauthorized(
     db_session.add(other_architect)
     await db_session.flush()
 
-    # Create template owned by other architect
     other_template = BriefingTemplate(
         name="Other's Template",
         category="residencial",
@@ -427,7 +421,6 @@ async def test_update_template_unauthorized(
     other_template.current_version_id = version.id
     await db_session.commit()
 
-    # Try to update with current user
     update_payload = {
         "questions": [{"order": 1, "question": "Hacked?", "type": "text", "required": True}]
     }
@@ -467,7 +460,6 @@ async def test_get_template_versions(
     project_type_residencial,
 ):
     """Test getting version history of a template."""
-    # Create template with multiple versions
     architect = architect_user
     template = BriefingTemplate(
         name="Versioned Template",
@@ -480,7 +472,6 @@ async def test_get_template_versions(
     db_session.add(template)
     await db_session.flush()
 
-    # Create 3 versions
     for i in range(1, 4):
         version = TemplateVersion(
             template_id=template.id,
@@ -506,5 +497,5 @@ async def test_get_template_versions(
     assert response.status_code == 200
     data = response.json()
     assert len(data["versions"]) == 3
-    assert data["versions"][0]["version_number"] == 3  # Most recent first
+    assert data["versions"][0]["version_number"] == 3
     assert data["versions"][2]["version_number"] == 1

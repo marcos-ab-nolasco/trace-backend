@@ -15,18 +15,18 @@ from src.db.session import Base
 class MessageDirection(str, Enum):
     """Enum for message direction."""
 
-    INBOUND = "inbound"  # Message from end client to system
-    OUTBOUND = "outbound"  # Message from system to end client
+    INBOUND = "inbound"
+    OUTBOUND = "outbound"
 
 
 class MessageStatus(str, Enum):
     """Enum for message status (WhatsApp delivery status)."""
 
-    RECEIVED = "received"  # Inbound message received
-    SENT = "sent"  # Outbound message sent to WhatsApp
-    DELIVERED = "delivered"  # Message delivered to recipient
-    READ = "read"  # Message read by recipient
-    FAILED = "failed"  # Message failed to send
+    RECEIVED = "received"
+    SENT = "sent"
+    DELIVERED = "delivered"
+    READ = "read"
+    FAILED = "failed"
 
 
 class WhatsAppMessage(Base):
@@ -39,36 +39,24 @@ class WhatsAppMessage(Base):
         Uuid, ForeignKey("whatsapp_sessions.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
-    # WhatsApp message identifier (from API)
     wa_message_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
 
-    # Message metadata
     direction: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
 
-    # Message content (JSONB to support different message types: text, image, document, etc.)
     content: Mapped[dict] = mapped_column(JSONB, nullable=False)
 
-    # Error handling (for failed messages)
     error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    timestamp: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True  # WhatsApp message timestamp
-    )
-    delivered_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True  # When message was delivered
-    )
-    read_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True  # When message was read
-    )
+    timestamp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Relationships
-    session: Mapped["WhatsAppSession"] = relationship("WhatsAppSession", back_populates="messages")  # type: ignore
+    session: Mapped["WhatsAppSession"] = relationship("WhatsAppSession", back_populates="messages")
 
     def __repr__(self) -> str:
         """String representation of WhatsAppMessage."""

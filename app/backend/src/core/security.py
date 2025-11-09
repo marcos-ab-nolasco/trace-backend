@@ -7,7 +7,6 @@ from jose import JWTError, jwt
 
 from src.core.config import get_settings
 
-# bcrypt cost factor (number of rounds = 2^cost)
 BCRYPT_ROUNDS = 12
 
 

@@ -34,7 +34,6 @@ class TemplateVersion(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    # Relationships
     template: Mapped["BriefingTemplate"] = relationship(
         "BriefingTemplate",
         back_populates="versions",

@@ -52,11 +52,9 @@ def require_organization_access(
     def decorator(func: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
         @wraps(func)
         async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-            # Extract dependencies from kwargs
             current_architect: Architect | None = kwargs.get("current_architect")
             db_session: AsyncSession | None = kwargs.get("db_session")
 
-            # Also check for alternative parameter names
             if current_architect is None:
                 current_architect = kwargs.get("current_user")
 
@@ -66,28 +64,22 @@ def require_organization_access(
                     detail="Missing required dependencies for organization access control",
                 )
 
-            # Extract the resource identifier from request body or path params
-            # FastAPI passes Pydantic models in kwargs with parameter name
             resource_architect_id = None
 
-            # Try to get from kwargs directly (path params)
             if param_name in kwargs:
                 resource_architect_id = kwargs[param_name]
             else:
-                # Try to get from request body objects in kwargs
                 for _key, value in kwargs.items():
                     if hasattr(value, param_name):
                         resource_architect_id = getattr(value, param_name)
                         break
 
             if resource_architect_id is None:
-                # If param not found, skip validation (endpoint may not need it)
                 logger.warning(
                     f"Organization access validation skipped: parameter '{param_name}' not found"
                 )
                 return await func(*args, **kwargs)
 
-            # Convert to UUID if string
             if isinstance(resource_architect_id, str):
                 try:
                     resource_architect_id = UUID(resource_architect_id)
@@ -97,7 +89,6 @@ def require_organization_access(
                         detail=f"Invalid UUID format for {param_name}",
                     ) from None
 
-            # Validate that resource architect belongs to same organization
             result = await db_session.execute(
                 select(Architect).where(Architect.id == resource_architect_id)
             )
@@ -120,7 +111,6 @@ def require_organization_access(
                     detail="You don't have permission to access resources from another organization",
                 )
 
-            # All checks passed, proceed with original function
             return await func(*args, **kwargs)
 
         return wrapper

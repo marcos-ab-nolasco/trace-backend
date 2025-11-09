@@ -17,7 +17,6 @@ async def test_get_account_config_uses_organization_settings_when_available(
     test_organization: Organization,
 ):
     """Test that organization settings are used when available."""
-    # Set organization WhatsApp settings
     test_organization.settings = {
         "phone_number_id": "org_phone_123",
         "access_token": TEST_TOKEN_ABC,
@@ -40,7 +39,6 @@ async def test_get_account_config_prefers_org_over_global(
     test_organization: Organization,
 ):
     """Test that organization settings take priority over global settings."""
-    # Set organization WhatsApp settings
     test_organization.settings = {
         "phone_number_id": "org_phone_123",
         "access_token": TEST_TOKEN_ABC,
@@ -51,7 +49,6 @@ async def test_get_account_config_prefers_org_over_global(
     service = WhatsAppAccountService(db_session)
     config = await service.get_account_config(test_organization.id)
 
-    # Should use org settings, not global
     assert config.phone_number_id == "org_phone_123"
     assert config.access_token == "test_token_abc"
     assert config.source == "organization"
@@ -76,7 +73,6 @@ async def test_get_account_config_can_override_phone_number_id(
     test_organization: Organization,
 ):
     """Test that phone_number_id can be overridden (from webhook)."""
-    # Organization has access_token but no phone_number_id
     test_organization.settings = {
         "access_token": TEST_TOKEN_ABC,
     }
@@ -85,7 +81,6 @@ async def test_get_account_config_can_override_phone_number_id(
 
     service = WhatsAppAccountService(db_session)
 
-    # Pass phone_number_id from webhook
     config = await service.get_account_config(
         test_organization.id, phone_number_id_override="webhook_phone_789"
     )

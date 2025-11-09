@@ -167,38 +167,31 @@ class TestBriefingOrganizationIsolation:
         """Architect A cannot start a briefing using Architect B's ID."""
         headers = get_auth_headers(architect_a)
 
-        # Architect A (authenticated) tries to start briefing using Architect B's ID
         response = await client.post(
             "/api/briefings/start-from-whatsapp",
             json={
-                "architect_id": str(architect_b.id),  # Wrong org!
+                "architect_id": str(architect_b.id),
                 "architect_message": "Client: John Doe, Phone: +5511555555555",
             },
             headers=headers,
         )
 
-        # Should fail with 403 Forbidden (not 200)
-        # Currently this will likely return 200 because isolation is not implemented
         assert response.status_code == 403
         assert "organization" in response.json()["detail"].lower()
 
 
-# Simplified version - only test the most critical cross-org access scenarios
 @pytest.mark.asyncio
 async def test_architecture_has_organization_relationships():
     """Verify data model has necessary organization relationships.
 
     This test documents the expected data model structure for organization isolation.
     """
-    # Verify models have organization_id
     from src.db.models.architect import Architect as ArchitectModel
     from src.db.models.briefing_template import BriefingTemplate as TemplateModel
     from src.db.models.end_client import EndClient as EndClientModel
 
-    # These assertions verify the models have organization_id field
     assert hasattr(ArchitectModel, "organization_id")
     assert hasattr(EndClientModel, "organization_id")
     assert hasattr(TemplateModel, "organization_id")
 
-    # Verify Architect has organization relationship
     assert hasattr(ArchitectModel, "organization")

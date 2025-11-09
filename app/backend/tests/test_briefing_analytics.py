@@ -15,7 +15,6 @@ from src.db.models.organization import Organization
 from src.db.models.template_version import TemplateVersion
 
 
-# Test-specific fixtures
 @pytest.fixture
 async def test_template(db_session: AsyncSession) -> BriefingTemplate:
     """Create test template."""
@@ -91,7 +90,6 @@ async def completed_briefing(
     return briefing
 
 
-# Tests
 @pytest.mark.asyncio
 async def test_briefing_analytics_model_creation(
     db_session: AsyncSession,
@@ -113,7 +111,6 @@ async def test_briefing_analytics_model_creation(
     await db_session.commit()
     await db_session.refresh(analytics)
 
-    # Assertions
     assert analytics.id is not None
     assert analytics.briefing_id == completed_briefing.id
     assert analytics.metrics["duration_seconds"] == 7200
@@ -132,7 +129,6 @@ async def test_calculate_briefing_metrics(
     service = AnalyticsService(db_session)
     metrics = await service.calculate_metrics(completed_briefing.id)
 
-    # Assertions
     assert "duration_seconds" in metrics
     assert metrics["duration_seconds"] > 0
     assert metrics["total_questions"] == 3
@@ -153,13 +149,11 @@ async def test_create_analytics_record_automatically(
     service = AnalyticsService(db_session)
     analytics = await service.create_analytics_record(completed_briefing.id)
 
-    # Verify analytics was created
     assert analytics.id is not None
     assert analytics.briefing_id == completed_briefing.id
     assert analytics.metrics is not None
     assert "duration_seconds" in analytics.metrics
 
-    # Verify it's saved in database
     result = await db_session.execute(
         select(BriefingAnalytics).where(BriefingAnalytics.briefing_id == completed_briefing.id)
     )
@@ -175,9 +169,8 @@ async def test_analytics_duration_calculation(
 ):
     """Test accurate duration calculation."""
 
-    # Create briefing with specific times (timezone-aware)
     start_time = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
-    end_time = datetime(2025, 1, 1, 11, 30, 0, tzinfo=UTC)  # 1.5 hours = 5400 seconds
+    end_time = datetime(2025, 1, 1, 11, 30, 0, tzinfo=UTC)
 
     briefing = Briefing(
         end_client_id=test_client.id,
@@ -196,7 +189,7 @@ async def test_analytics_duration_calculation(
     service = AnalyticsService(db_session)
     metrics = await service.calculate_metrics(briefing.id)
 
-    assert metrics["duration_seconds"] == 5400  # 1.5 hours
+    assert metrics["duration_seconds"] == 5400
 
 
 @pytest.mark.asyncio
@@ -207,7 +200,6 @@ async def test_analytics_completion_rate(
 ):
     """Test completion rate calculation with different answer counts."""
 
-    # Briefing with all questions answered
     briefing_full = Briefing(
         end_client_id=test_client.id,
         template_version_id=test_template.current_version_id,
@@ -224,7 +216,7 @@ async def test_analytics_completion_rate(
     service = AnalyticsService(db_session)
     metrics_full = await service.calculate_metrics(briefing_full.id)
 
-    assert metrics_full["completion_rate"] == 1.0  # 3/3 = 100%
+    assert metrics_full["completion_rate"] == 1.0
 
 
 @pytest.mark.asyncio
@@ -238,7 +230,6 @@ async def test_analytics_identifies_optional_questions_not_answered(
     service = AnalyticsService(db_session)
     metrics = await service.calculate_metrics(completed_briefing.id)
 
-    # Question 3 is optional and not answered
     assert metrics["optional_answered"] == 0
     assert metrics["optional_skipped"] == 1
 
@@ -249,13 +240,11 @@ async def test_get_analytics_for_briefing(
     completed_briefing: Briefing,
 ):
     """Test retrieving analytics for a briefing."""
-    # Create analytics record
     from src.services.briefing.analytics_service import AnalyticsService
 
     service = AnalyticsService(db_session)
     created_analytics = await service.create_analytics_record(completed_briefing.id)
 
-    # Retrieve it
     retrieved_analytics = await service.get_analytics(completed_briefing.id)
 
     assert retrieved_analytics is not None
@@ -270,7 +259,6 @@ async def test_analytics_not_created_for_incomplete_briefing(
     test_template: BriefingTemplate,
 ):
     """Test that analytics should not be created for incomplete briefings."""
-    # Create incomplete briefing
     incomplete_briefing = Briefing(
         end_client_id=test_client.id,
         template_version_id=test_template.current_version_id,
@@ -285,7 +273,6 @@ async def test_analytics_not_created_for_incomplete_briefing(
 
     service = AnalyticsService(db_session)
 
-    # Should raise error or return None
     with pytest.raises(ValueError, match="not completed"):
         await service.create_analytics_record(incomplete_briefing.id)
 
@@ -300,17 +287,13 @@ async def test_analytics_prevents_duplicate_creation(
 
     service = AnalyticsService(db_session)
 
-    # Create first analytics
     analytics1 = await service.create_analytics_record(completed_briefing.id)
     assert analytics1 is not None
 
-    # Try to create again - should return existing or raise error
     analytics2 = await service.create_analytics_record(completed_briefing.id)
 
-    # Should be the same record or properly handled
     assert analytics2.briefing_id == completed_briefing.id
 
-    # Verify only one record exists
     result = await db_session.execute(
         select(BriefingAnalytics).where(BriefingAnalytics.briefing_id == completed_briefing.id)
     )

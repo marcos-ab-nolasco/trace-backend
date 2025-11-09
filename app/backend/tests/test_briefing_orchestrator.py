@@ -12,7 +12,6 @@ from src.db.models.template_version import TemplateVersion
 from src.services.briefing.orchestrator import BriefingOrchestrator
 
 
-# Test-specific fixtures
 @pytest.fixture
 async def test_template_version(db_session: AsyncSession) -> TemplateVersion:
     """Create test template with version."""
@@ -65,7 +64,6 @@ def orchestrator(db_session: AsyncSession) -> BriefingOrchestrator:
     return BriefingOrchestrator(db_session=db_session)
 
 
-# Start Briefing Tests
 @pytest.mark.asyncio
 async def test_start_briefing(
     orchestrator: BriefingOrchestrator,
@@ -97,7 +95,6 @@ async def test_start_briefing_invalid_client(
         )
 
 
-# Next Question Tests
 @pytest.mark.asyncio
 async def test_next_question_first(
     orchestrator: BriefingOrchestrator,
@@ -129,12 +126,10 @@ async def test_next_question_after_answer(
         end_client_id=test_end_client.id, template_version_id=test_template_version.id
     )
 
-    # Answer first question
     await orchestrator.process_answer(
         briefing_id=briefing.id, question_order=1, answer="Apartamento"
     )
 
-    # Get next question
     question = await orchestrator.next_question(briefing_id=briefing.id)
 
     assert question is not None
@@ -153,20 +148,17 @@ async def test_next_question_completed_briefing(
         end_client_id=test_end_client.id, template_version_id=test_template_version.id
     )
 
-    # Answer all questions
     await orchestrator.process_answer(
         briefing_id=briefing.id, question_order=1, answer="Apartamento"
     )
     await orchestrator.process_answer(briefing_id=briefing.id, question_order=2, answer="80")
     await orchestrator.process_answer(briefing_id=briefing.id, question_order=3, answer="R$ 50.000")
 
-    # Try to get next question
     question = await orchestrator.next_question(briefing_id=briefing.id)
 
     assert question is None
 
 
-# Process Answer Tests
 @pytest.mark.asyncio
 async def test_process_answer_valid(
     orchestrator: BriefingOrchestrator,
@@ -198,12 +190,10 @@ async def test_process_answer_multiple(
         end_client_id=test_end_client.id, template_version_id=test_template_version.id
     )
 
-    # Answer question 1
     await orchestrator.process_answer(
         briefing_id=briefing.id, question_order=1, answer="Apartamento"
     )
 
-    # Answer question 2
     updated_briefing = await orchestrator.process_answer(
         briefing_id=briefing.id, question_order=2, answer="80"
     )
@@ -223,12 +213,10 @@ async def test_process_answer_out_of_order(
         end_client_id=test_end_client.id, template_version_id=test_template_version.id
     )
 
-    # Try to answer question 2 before question 1
     with pytest.raises(ValueError, match="Must answer current question"):
         await orchestrator.process_answer(briefing_id=briefing.id, question_order=2, answer="80")
 
 
-# Complete Briefing Tests
 @pytest.mark.asyncio
 async def test_complete_briefing_all_required_answered(
     orchestrator: BriefingOrchestrator,
@@ -241,13 +229,11 @@ async def test_complete_briefing_all_required_answered(
         end_client_id=test_end_client.id, template_version_id=test_template_version.id
     )
 
-    # Answer required questions (1 and 2)
     await orchestrator.process_answer(
         briefing_id=briefing.id, question_order=1, answer="Apartamento"
     )
     await orchestrator.process_answer(briefing_id=briefing.id, question_order=2, answer="80")
 
-    # Complete briefing
     completed_briefing = await orchestrator.complete_briefing(briefing_id=briefing.id)
 
     assert completed_briefing.status == BriefingStatus.COMPLETED
@@ -265,12 +251,10 @@ async def test_complete_briefing_missing_required(
         end_client_id=test_end_client.id, template_version_id=test_template_version.id
     )
 
-    # Only answer question 1 (question 2 is also required)
     await orchestrator.process_answer(
         briefing_id=briefing.id, question_order=1, answer="Apartamento"
     )
 
-    # Try to complete
     with pytest.raises(ValueError, match="required questions not answered"):
         await orchestrator.complete_briefing(briefing_id=briefing.id)
 
@@ -291,7 +275,6 @@ async def test_cancel_briefing(
     assert cancelled_briefing.status == BriefingStatus.CANCELLED
 
 
-# Get Briefing Status Tests
 @pytest.mark.asyncio
 async def test_get_briefing_progress(
     orchestrator: BriefingOrchestrator,
@@ -303,7 +286,6 @@ async def test_get_briefing_progress(
         end_client_id=test_end_client.id, template_version_id=test_template_version.id
     )
 
-    # Answer 1 of 3 questions
     await orchestrator.process_answer(
         briefing_id=briefing.id, question_order=1, answer="Apartamento"
     )

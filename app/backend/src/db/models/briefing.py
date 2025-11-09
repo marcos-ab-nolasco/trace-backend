@@ -74,7 +74,6 @@ class Briefing(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # Relationships
     end_client: Mapped["EndClient"] = relationship("EndClient", back_populates="briefings")
     template_version: Mapped["TemplateVersion"] = relationship("TemplateVersion")
     analytics: Mapped["BriefingAnalytics | None"] = relationship(

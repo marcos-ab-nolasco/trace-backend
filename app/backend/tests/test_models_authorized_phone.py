@@ -15,13 +15,11 @@ from src.db.models.organization import Organization
 @pytest.mark.asyncio
 async def test_create_authorized_phone(db_session):
     """Test creating an authorized phone."""
-    # Create organization first
     org = Organization(name="Test Org")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create architect
     architect = Architect(
         organization_id=org.id,
         email="arch@test.com",
@@ -33,7 +31,6 @@ async def test_create_authorized_phone(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Create authorized phone
     auth_phone = AuthorizedPhone(
         organization_id=org.id,
         phone_number="+5511987654321",
@@ -55,13 +52,11 @@ async def test_create_authorized_phone(db_session):
 @pytest.mark.asyncio
 async def test_authorized_phone_unique_constraint(db_session):
     """Test that (organization_id, phone_number) must be unique."""
-    # Create organization
     org = Organization(name="Test Org Unique")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create architect
     architect = Architect(
         organization_id=org.id,
         email="arch@unique.com",
@@ -71,7 +66,6 @@ async def test_authorized_phone_unique_constraint(db_session):
     db_session.add(architect)
     await db_session.commit()
 
-    # Create first authorized phone
     phone1 = AuthorizedPhone(
         organization_id=org.id,
         phone_number="+5511987654321",
@@ -80,7 +74,6 @@ async def test_authorized_phone_unique_constraint(db_session):
     db_session.add(phone1)
     await db_session.commit()
 
-    # Try to create duplicate (same org + same phone)
     phone2 = AuthorizedPhone(
         organization_id=org.id,
         phone_number="+5511987654321",
@@ -94,7 +87,6 @@ async def test_authorized_phone_unique_constraint(db_session):
 @pytest.mark.asyncio
 async def test_authorized_phone_different_orgs_same_phone(db_session):
     """Test that same phone can be authorized in different organizations."""
-    # Create two organizations
     org1 = Organization(name="Org 1")
     org2 = Organization(name="Org 2")
     db_session.add_all([org1, org2])
@@ -102,7 +94,6 @@ async def test_authorized_phone_different_orgs_same_phone(db_session):
     await db_session.refresh(org1)
     await db_session.refresh(org2)
 
-    # Create architects
     arch1 = Architect(
         organization_id=org1.id,
         email="arch1@test.com",
@@ -118,7 +109,6 @@ async def test_authorized_phone_different_orgs_same_phone(db_session):
     db_session.add_all([arch1, arch2])
     await db_session.commit()
 
-    # Same phone number in different organizations should be OK
     phone1 = AuthorizedPhone(
         organization_id=org1.id,
         phone_number="+5511987654321",
@@ -132,7 +122,6 @@ async def test_authorized_phone_different_orgs_same_phone(db_session):
     db_session.add_all([phone1, phone2])
     await db_session.commit()
 
-    # Both should be created successfully
     result = await db_session.execute(
         select(AuthorizedPhone).where(AuthorizedPhone.phone_number == "+5511987654321")
     )
@@ -143,13 +132,11 @@ async def test_authorized_phone_different_orgs_same_phone(db_session):
 @pytest.mark.asyncio
 async def test_authorized_phone_cascade_delete_organization(db_session):
     """Test that deleting organization cascades to authorized phones."""
-    # Create organization
     org = Organization(name="Delete Cascade Org")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create architect
     architect = Architect(
         organization_id=org.id,
         email="arch@cascade.com",
@@ -159,7 +146,6 @@ async def test_authorized_phone_cascade_delete_organization(db_session):
     db_session.add(architect)
     await db_session.commit()
 
-    # Create authorized phone
     auth_phone = AuthorizedPhone(
         organization_id=org.id,
         phone_number="+5511987654321",
@@ -169,11 +155,9 @@ async def test_authorized_phone_cascade_delete_organization(db_session):
     await db_session.commit()
     phone_id = auth_phone.id
 
-    # Delete organization
     await db_session.delete(org)
     await db_session.commit()
 
-    # Verify authorized phone is also deleted
     result = await db_session.execute(select(AuthorizedPhone).where(AuthorizedPhone.id == phone_id))
     assert result.scalar_one_or_none() is None
 
@@ -181,13 +165,11 @@ async def test_authorized_phone_cascade_delete_organization(db_session):
 @pytest.mark.asyncio
 async def test_authorized_phone_relationships(db_session):
     """Test authorized phone relationships with organization and architect."""
-    # Create organization
     org = Organization(name="Relationship Org")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create architect
     architect = Architect(
         organization_id=org.id,
         email="arch@rel.com",
@@ -199,7 +181,6 @@ async def test_authorized_phone_relationships(db_session):
     await db_session.commit()
     await db_session.refresh(architect)
 
-    # Create authorized phone
     auth_phone = AuthorizedPhone(
         organization_id=org.id,
         phone_number="+5511987654321",
@@ -209,7 +190,6 @@ async def test_authorized_phone_relationships(db_session):
     await db_session.commit()
     await db_session.refresh(auth_phone, ["organization", "added_by"])
 
-    # Verify relationships
     assert auth_phone.organization.id == org.id
     assert auth_phone.organization.name == "Relationship Org"
     assert auth_phone.added_by.id == architect.id
@@ -219,13 +199,11 @@ async def test_authorized_phone_relationships(db_session):
 @pytest.mark.asyncio
 async def test_authorized_phone_default_is_active(db_session):
     """Test that is_active defaults to True."""
-    # Create organization
     org = Organization(name="Default Active Org")
     db_session.add(org)
     await db_session.commit()
     await db_session.refresh(org)
 
-    # Create architect
     architect = Architect(
         organization_id=org.id,
         email="arch@default.com",
@@ -235,7 +213,6 @@ async def test_authorized_phone_default_is_active(db_session):
     db_session.add(architect)
     await db_session.commit()
 
-    # Create authorized phone without specifying is_active
     auth_phone = AuthorizedPhone(
         organization_id=org.id,
         phone_number="+5511987654321",

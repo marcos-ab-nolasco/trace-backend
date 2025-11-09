@@ -29,7 +29,6 @@ async def whatsapp_account(db_session: AsyncSession) -> WhatsAppAccount:
     db_session.add(account)
     await db_session.flush()
 
-    # Create N:N relationship
     link = OrganizationWhatsAppAccount(
         organization_id=org.id,
         whatsapp_account_id=account.id,
@@ -41,11 +40,9 @@ async def whatsapp_account(db_session: AsyncSession) -> WhatsAppAccount:
     return account
 
 
-# Webhook Verification Tests (GET)
 @pytest.mark.asyncio
 async def test_webhook_verification_success(client: AsyncClient, whatsapp_account: WhatsAppAccount):
     """Test webhook verification with correct token."""
-    # .env.test has WHATSAPP_WEBHOOK_VERIFY_TOKEN=test_verify_token
     response = await client.get(
         "/api/webhooks/whatsapp",
         params={
@@ -56,7 +53,7 @@ async def test_webhook_verification_success(client: AsyncClient, whatsapp_accoun
     )
 
     assert response.status_code == 200
-    assert response.text == '"challenge_string_123"'  # JSON string response
+    assert response.text == '"challenge_string_123"'
 
 
 @pytest.mark.asyncio
@@ -92,7 +89,7 @@ async def test_webhook_verification_wrong_mode(
     response = await client.get(
         "/api/webhooks/whatsapp",
         params={
-            "hub.mode": "unsubscribe",  # Wrong mode
+            "hub.mode": "unsubscribe",
             "hub.verify_token": "test_verify_token",
             "hub.challenge": "challenge_string_123",
         },
@@ -101,13 +98,11 @@ async def test_webhook_verification_wrong_mode(
     assert response.status_code == 400
 
 
-# Webhook Message Handling Tests (POST)
 @pytest.mark.asyncio
 async def test_webhook_receive_text_message(
     client: AsyncClient, db_session: AsyncSession, whatsapp_account: WhatsAppAccount
 ):
     """Test receiving a text message from WhatsApp."""
-    # Create end client and session
     org = Organization(name="Test Org 2")
     db_session.add(org)
     await db_session.flush()
@@ -139,7 +134,6 @@ async def test_webhook_receive_text_message(
     db_session.add(session)
     await db_session.commit()
 
-    # WhatsApp webhook payload (text message)
     payload = {
         "object": "whatsapp_business_account",
         "entry": [
@@ -182,7 +176,6 @@ async def test_webhook_receive_text_message(
 @pytest.mark.asyncio
 async def test_webhook_receive_status_update(client: AsyncClient):
     """Test receiving a message status update from WhatsApp."""
-    # WhatsApp webhook payload (status update)
     payload = {
         "object": "whatsapp_business_account",
         "entry": [
@@ -225,7 +218,6 @@ async def test_webhook_invalid_payload(client: AsyncClient):
 
     response = await client.post("/api/webhooks/whatsapp", json=payload)
 
-    # Should still return 200 to avoid retries from WhatsApp
     assert response.status_code == 200
 
 
@@ -234,7 +226,6 @@ async def test_webhook_empty_payload(client: AsyncClient):
     """Test webhook with empty payload."""
     response = await client.post("/api/webhooks/whatsapp", json={})
 
-    # Should still return 200 to avoid retries from WhatsApp
     assert response.status_code == 200
 
 
@@ -259,7 +250,7 @@ async def test_webhook_handles_unsupported_message_type(client: AsyncClient):
                                     "from": "5511999999999",
                                     "id": "wamid.test456",
                                     "timestamp": "1234567890",
-                                    "type": "unsupported_type",  # Unsupported
+                                    "type": "unsupported_type",
                                 }
                             ],
                         },
@@ -272,11 +263,9 @@ async def test_webhook_handles_unsupported_message_type(client: AsyncClient):
 
     response = await client.post("/api/webhooks/whatsapp", json=payload)
 
-    # Should return 200 even for unsupported types
     assert response.status_code == 200
 
 
-# Rate Limiting Tests (Issue #7)
 @pytest.mark.asyncio
 async def test_webhook_rate_limit_enforced(client: AsyncClient):
     """Test that webhook POST endpoint enforces rate limit.
@@ -284,30 +273,24 @@ async def test_webhook_rate_limit_enforced(client: AsyncClient):
     Tests Issue #7 fix: webhook should reject requests exceeding configured limit.
     .env.test sets RATE_LIMIT_WEBHOOK=5/minute for easier testing.
     """
-    # Simple payload that will be accepted
     payload = {
         "object": "whatsapp_business_account",
         "entry": [],
     }
 
-    # Make requests up to the limit (5 per .env.test)
-    # All should succeed with 200
     for i in range(5):
         response = await client.post("/api/webhooks/whatsapp", json=payload)
         assert response.status_code == 200, f"Request {i+1}/5 should succeed"
 
-    # Next request should be rate limited
     response = await client.post("/api/webhooks/whatsapp", json=payload)
     assert response.status_code == 429, "6th request should be rate limited with 429 status"
 
-    # Verify error response contains rate limit information
     response_data = response.json()
     assert (
         "error" in response_data or "detail" in response_data
     ), "Error response should contain error details"
 
 
-# Status Update Persistence Tests (Issue #2)
 @pytest.mark.asyncio
 async def test_status_update_delivered_persisted(
     client: AsyncClient, db_session: AsyncSession, whatsapp_account: WhatsAppAccount
@@ -317,7 +300,6 @@ async def test_status_update_delivered_persisted(
     Tests Issue #2 fix: _handle_status_update should save status to WhatsAppMessage.
     """
 
-    # Create test data
     org = Organization(name="Test Org Status")
     db_session.add(org)
     await db_session.flush()
@@ -349,7 +331,6 @@ async def test_status_update_delivered_persisted(
     db_session.add(session)
     await db_session.flush()
 
-    # Create outbound message (sent to client)
     message = WhatsAppMessage(
         session_id=session.id,
         wa_message_id="wamid.status_test_123",
@@ -360,7 +341,6 @@ async def test_status_update_delivered_persisted(
     db_session.add(message)
     await db_session.commit()
 
-    # Send status update webhook
     payload = {
         "object": "whatsapp_business_account",
         "entry": [
@@ -393,11 +373,10 @@ async def test_status_update_delivered_persisted(
     response = await client.post("/api/webhooks/whatsapp", json=payload)
     assert response.status_code == 200
 
-    # Verify status was persisted
     await db_session.refresh(message)
     assert message.status == MessageStatus.DELIVERED.value
     assert message.delivered_at is not None
-    assert message.read_at is None  # Not read yet
+    assert message.read_at is None
 
 
 @pytest.mark.asyncio
@@ -406,7 +385,6 @@ async def test_status_update_read_persisted(
 ):
     """Test that 'read' status update is persisted to database."""
 
-    # Create test data
     org = Organization(name="Test Org Read")
     db_session.add(org)
     await db_session.flush()
@@ -448,7 +426,6 @@ async def test_status_update_read_persisted(
     db_session.add(message)
     await db_session.commit()
 
-    # Send read status update
     payload = {
         "object": "whatsapp_business_account",
         "entry": [
@@ -481,7 +458,6 @@ async def test_status_update_read_persisted(
     response = await client.post("/api/webhooks/whatsapp", json=payload)
     assert response.status_code == 200
 
-    # Verify read status was persisted
     await db_session.refresh(message)
     assert message.status == MessageStatus.READ.value
     assert message.read_at is not None
@@ -493,7 +469,6 @@ async def test_status_update_failed_persisted(
 ):
     """Test that 'failed' status update with error details is persisted."""
 
-    # Create test data
     org = Organization(name="Test Org Failed")
     db_session.add(org)
     await db_session.flush()
@@ -535,7 +510,6 @@ async def test_status_update_failed_persisted(
     db_session.add(message)
     await db_session.commit()
 
-    # Send failed status update with error details
     payload = {
         "object": "whatsapp_business_account",
         "entry": [
@@ -575,7 +549,6 @@ async def test_status_update_failed_persisted(
     response = await client.post("/api/webhooks/whatsapp", json=payload)
     assert response.status_code == 200
 
-    # Verify failed status and error details were persisted
     await db_session.refresh(message)
     assert message.status == MessageStatus.FAILED.value
     assert message.error_code == "131047"
@@ -587,7 +560,6 @@ async def test_status_update_message_not_found(
     client: AsyncClient, db_session: AsyncSession, whatsapp_account: WhatsAppAccount
 ):
     """Test that status update for non-existent message doesn't crash (logs warning)."""
-    # Send status update for message that doesn't exist in DB
     payload = {
         "object": "whatsapp_business_account",
         "entry": [
@@ -617,6 +589,5 @@ async def test_status_update_message_not_found(
         ],
     }
 
-    # Should return 200 and log warning, not crash
     response = await client.post("/api/webhooks/whatsapp", json=payload)
     assert response.status_code == 200

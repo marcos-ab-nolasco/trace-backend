@@ -78,7 +78,6 @@ async def list_ai_providers() -> list[AIProvider]:
             bool(is_configured_callable(settings)) if callable(is_configured_callable) else False
         )
 
-        # Convert model dicts to AIModelOption objects
         models_data = meta.get("models", [])
         models = [AIModelOption(**model) for model in models_data]
 

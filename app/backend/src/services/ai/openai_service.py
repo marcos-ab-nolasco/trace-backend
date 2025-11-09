@@ -58,7 +58,7 @@ class OpenAIService(BaseAIService):
                         model=model,
                         messages=payload,
                     )
-        except Exception as exc:  # noqa: BLE001 - upstream errors vary
+        except Exception as exc:
             logger.error(
                 f"OpenAI call failed after retries: model={model} error={type(exc).__name__}"
             )
@@ -73,7 +73,7 @@ class OpenAIService(BaseAIService):
             content = message.content
         else:
             parts: list[str] = []
-            for part in message.content or []:  # type: ignore[var-annotated]
+            for part in message.content or []:
                 if isinstance(part, str):
                     parts.append(part)
                 elif isinstance(part, dict):
@@ -111,13 +111,11 @@ class OpenAIService(BaseAIService):
 
         client = self._client
 
-        # Build messages
         messages: list[dict[str, Any]] = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
 
-        # Get JSON schema from Pydantic model
         schema = response_model.model_json_schema()
 
         try:
@@ -138,14 +136,13 @@ class OpenAIService(BaseAIService):
                         messages=messages,
                         response_format={"type": "json_object"},
                     )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error(f"OpenAI structured call failed: model={model} error={type(exc).__name__}")
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"Failed to generate structured response from OpenAI: {exc}",
             ) from exc
 
-        # Parse response content
         content = response.choices[0].message.content
         if not content:
             raise HTTPException(
@@ -153,7 +150,6 @@ class OpenAIService(BaseAIService):
                 detail="OpenAI returned empty structured response",
             )
 
-        # Parse JSON and validate against Pydantic model
         try:
             data = json.loads(content)
             return response_model.model_validate(data)

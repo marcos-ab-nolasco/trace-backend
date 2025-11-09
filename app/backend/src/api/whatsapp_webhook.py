@@ -45,7 +45,6 @@ async def verify_webhook(
     """
     settings = get_settings()
 
-    # Check all required parameters are present
     if not all([hub_mode, hub_verify_token, hub_challenge]):
         logger.warning("Webhook verification failed: missing parameters")
         raise HTTPException(
@@ -53,14 +52,12 @@ async def verify_webhook(
             detail="Missing required parameters: hub.mode, hub.verify_token, hub.challenge",
         )
 
-    # Verify mode is 'subscribe'
     if hub_mode != "subscribe":
         logger.warning(f"Webhook verification failed: invalid mode '{hub_mode}'")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid hub.mode, expected 'subscribe'"
         )
 
-    # Verify token matches
     expected_token = settings.WHATSAPP_WEBHOOK_VERIFY_TOKEN
     if not expected_token or hub_verify_token != expected_token.get_secret_value():
         logger.warning("Webhook verification failed: invalid verify token")
@@ -84,7 +81,6 @@ async def receive_webhook(
     Always returns 200 to avoid retries from WhatsApp.
     """
     try:
-        # Parse webhook payload
         events = WebhookHandler.parse_webhook_payload(payload)
 
         if not events:
@@ -93,7 +89,6 @@ async def receive_webhook(
 
         logger.info(f"Received {len(events)} webhook event(s)")
 
-        # Process each event
         for event in events:
             event_type = event.get("event_type")
 
@@ -105,7 +100,6 @@ async def receive_webhook(
                 logger.warning(f"Unknown event type: {event_type}")
 
     except Exception as e:
-        # Log error but still return 200 to avoid WhatsApp retries
         logger.error(f"Error processing webhook: {str(e)}", exc_info=True)
 
     return WebhookResponse(status="ok")
@@ -131,33 +125,28 @@ async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSessi
 
     logger.info(f"Incoming message: wa_id={wa_message_id}, from={from_number}, type={message_type}")
 
-    # Only process text messages for now
     if message_type != "text":
         logger.info(f"Skipping non-text message type: {message_type}")
         return
 
-    # Extract text from message
     text_body = content.get("text", {}).get("body")
     if not text_body:
         logger.warning("Text message without body")
         return
 
-    # Check if sender is an authorized phone
     from sqlalchemy import select
 
     from src.db.models.authorized_phone import AuthorizedPhone
 
-    # Find if this phone is authorized in any organization
     result = await db_session.execute(
         select(AuthorizedPhone).where(
             AuthorizedPhone.phone_number == from_number,
-            AuthorizedPhone.is_active == True,  # noqa: E712
+            AuthorizedPhone.is_active == True,
         )
     )
     authorized_phone = result.scalar_one_or_none()
 
     if authorized_phone:
-        # This is an authorized phone → Start new briefing
         logger.info(f"Message from authorized phone: {from_number}")
         await _handle_authorized_phone_message(
             from_number=from_number,
@@ -167,7 +156,6 @@ async def _handle_incoming_message(event: dict[str, Any], db_session: AsyncSessi
             db_session=db_session,
         )
     else:
-        # This might be a client phone → Process answer
         logger.info(f"Message from potential client: {from_number}")
         await _handle_client_answer(
             from_number=from_number,
@@ -207,13 +195,11 @@ async def _handle_authorized_phone_message(
     from src.services.template_service import TemplateService
 
     try:
-        # Get organization
         result = await db_session.execute(
             select(Organization).where(Organization.id == authorized_phone.organization_id)
         )
         organization = result.scalar_one()
 
-        # Extract client info using AI
         ai_service = get_ai_service("openai")
         extraction_service = ExtractionService(ai_service)
         extracted_info = await extraction_service.extract_client_info(
@@ -227,7 +213,6 @@ async def _handle_authorized_phone_message(
             f"name={extracted_info.name}, phone={extracted_info.phone}"
         )
 
-        # Validate extraction
         if extracted_info.confidence < 0.5 or not extracted_info.name or not extracted_info.phone:
             error_msg = (
                 "❌ Não consegui extrair os dados do cliente da sua mensagem.\n\n"
@@ -238,7 +223,6 @@ async def _handle_authorized_phone_message(
                 "Exemplo: 'Cliente João Silva, tel 11987654321, quer fazer reforma residencial'"
             )
 
-            # Send error back to sender
             account_service = WhatsAppAccountService(db_session)
             config = await account_service.get_account_config(
                 organization_id=organization.id,
@@ -255,19 +239,16 @@ async def _handle_authorized_phone_message(
             logger.warning(f"Extraction failed for message from {from_number}")
             return
 
-        # Normalize phone
         from src.services.briefing.phone_utils import normalize_phone
 
         client_phone = normalize_phone(extracted_info.phone)
 
-        # Select template
         template_service = TemplateService(db_session)
         template_version = await template_service.select_template_version_for_project(
             architect_id=authorized_phone.added_by_architect_id,
             project_type_slug=extracted_info.project_type or "residencial",
         )
 
-        # Start briefing
         briefing_service = BriefingStartService(db_session)
         briefing = await briefing_service.start_briefing(
             organization_id=organization.id,
@@ -277,12 +258,10 @@ async def _handle_authorized_phone_message(
             template_version_id=template_version.id,
         )
 
-        # Get first question
         orchestrator = BriefingOrchestrator(db_session)
         first_question_data = await orchestrator.next_question(briefing.id)
         first_question = first_question_data["question"]
 
-        # Send first question to client
         account_service = WhatsAppAccountService(db_session)
         config = await account_service.get_account_config(
             organization_id=organization.id,
@@ -306,7 +285,6 @@ async def _handle_authorized_phone_message(
     except ClientHasActiveBriefingError as e:
         error_msg = f"⚠️ Este cliente já possui um briefing ativo.\n\n{str(e)}"
 
-        # Send error to sender
         account_service = WhatsAppAccountService(db_session)
         config = await account_service.get_account_config(
             organization_id=organization.id,
@@ -352,7 +330,7 @@ async def _handle_client_answer(
         phone_number=from_number,
         answer_text=text_body,
         wa_message_id=wa_message_id,
-        session_id=None,  # Let processor find/create session
+        session_id=None,
         phone_number_id=phone_number_id,
     )
 
@@ -391,7 +369,6 @@ async def _handle_status_update(event: dict[str, Any], db_session: AsyncSession)
 
     logger.info(f"Status update: wa_id={wa_message_id}, status={new_status}")
 
-    # Find WhatsAppMessage by wa_message_id
     result = await db_session.execute(
         select(WhatsAppMessage).where(WhatsAppMessage.wa_message_id == wa_message_id)
     )
@@ -401,10 +378,8 @@ async def _handle_status_update(event: dict[str, Any], db_session: AsyncSession)
         logger.warning(f"Message {wa_message_id} not found for status update")
         return
 
-    # Update status
     message.status = new_status
 
-    # Update timestamps and error fields based on status
     if new_status == "delivered":
         message.delivered_at = datetime.now(UTC)
     elif new_status == "read":

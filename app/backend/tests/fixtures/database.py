@@ -32,16 +32,14 @@ async def test_engine():
         settings.DATABASE_URL.get_secret_value(),
         echo=False,
         future=True,
-        poolclass=NullPool,  # No connection pooling - each op gets fresh connection
+        poolclass=NullPool,
     )
 
-    # Create all tables once for the entire test session
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
     yield engine
 
-    # Drop all tables at the end of the test session
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
@@ -62,13 +60,9 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     async with session_factory() as session:
         yield session
 
-    # Clean all tables after each test using TRUNCATE CASCADE
-    # This is fast, handles foreign keys automatically, and resets sequences
     async with test_engine.begin() as conn:
-        # Get all table names in reverse order (respects dependencies)
         table_names = ", ".join([table.name for table in reversed(Base.metadata.sorted_tables)])
 
-        # TRUNCATE with CASCADE handles foreign keys, RESTART IDENTITY resets auto-increment
         await conn.execute(
             sqlalchemy.text(f"TRUNCATE TABLE {table_names} RESTART IDENTITY CASCADE")
         )
