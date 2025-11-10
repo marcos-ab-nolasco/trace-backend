@@ -11,6 +11,13 @@ from .auth import (
     test_architect_with_whatsapp,
     test_user,
 )
+from .briefing import (
+    briefing_with_session,
+    template_version_simple,
+    template_with_conditions,
+    test_briefing,
+    test_whatsapp_session,
+)
 from .client import client
 from .clients import test_end_client
 from .database import db_session, event_loop, test_engine
@@ -49,6 +56,11 @@ __all__ = [
     "project_type_reforma",
     "project_type_comercial",
     "test_template",
+    "template_version_simple",
+    "template_with_conditions",
+    "test_briefing",
+    "test_whatsapp_session",
+    "briefing_with_session",
     "client",
     "avoid_external_requests",
     "mock_ai_service",

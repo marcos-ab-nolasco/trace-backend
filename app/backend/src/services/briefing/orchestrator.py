@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.end_client import EndClient
 from src.db.models.template_version import TemplateVersion
+from src.db.models.whatsapp_session import WhatsAppSession
 from src.services.briefing.analytics_service import AnalyticsService
 
 logger = logging.getLogger(__name__)
@@ -102,8 +103,80 @@ class BriefingOrchestrator:
 
         return None
 
+    async def get_next_question_for_session(
+        self, session_id: UUID, template_version_id: UUID
+    ) -> dict[str, Any] | None:
+        """Get the next question for a WhatsApp session.
+
+        Uses session.current_question_index to determine which question to return.
+        Skips already-answered questions by checking briefing.answers.
+
+        Args:
+            session_id: ID of the WhatsApp session
+            template_version_id: ID of the template version
+
+        Returns:
+            Next question dict or None if all questions answered
+
+        Raises:
+            ValueError: If session or template not found
+        """
+        # Get session
+        result = await self.db_session.execute(
+            select(WhatsAppSession).where(WhatsAppSession.id == session_id)
+        )
+        session = result.scalar_one_or_none()
+        if not session:
+            raise ValueError(f"Session not found: {session_id}")
+
+        # Get template
+        result = await self.db_session.execute(
+            select(TemplateVersion).where(TemplateVersion.id == template_version_id)
+        )
+        template_version = result.scalar_one_or_none()
+        if not template_version:
+            raise ValueError(f"TemplateVersion not found: {template_version_id}")
+
+        # Get briefing if exists
+        briefing = None
+        if session.briefing_id:
+            result = await self.db_session.execute(
+                select(Briefing).where(Briefing.id == session.briefing_id)
+            )
+            briefing = result.scalar_one_or_none()
+
+        # Collect answered question orders
+        answered_orders = set()
+        if briefing and briefing.answers:
+            answered_orders = {int(order) for order in briefing.answers.keys()}
+
+        # Find next unanswered question starting from session's current index
+        questions = template_version.questions
+        for question in sorted(questions, key=lambda q: q["order"]):
+            question_order = question["order"]
+
+            # Skip if already answered
+            if question_order in answered_orders:
+                continue
+
+            # If we've reached or passed the session index, return this question
+            if question_order >= session.current_question_index:
+                logger.info(
+                    f"Returning question {question_order} for session {session_id} "
+                    f"(index: {session.current_question_index})"
+                )
+                return dict(question)
+
+        # No more questions
+        return None
+
     async def process_answer(
-        self, briefing_id: UUID, question_order: int, answer: str, auto_commit: bool = True
+        self,
+        briefing_id: UUID,
+        question_order: int,
+        answer: str,
+        auto_commit: bool = True,
+        session_id: UUID | None = None,
     ) -> Briefing:
         """Process an answer to a question.
 
@@ -113,6 +186,7 @@ class BriefingOrchestrator:
             answer: Answer text
             auto_commit: If True (default), commits changes immediately.
                         If False, only flushes changes, leaving transaction control to caller.
+            session_id: Optional WhatsApp session ID to sync progression state
 
         Returns:
             Updated Briefing instance
@@ -139,6 +213,18 @@ class BriefingOrchestrator:
         briefing.answers = answers
 
         briefing.current_question_order = question_order + 1
+
+        # Sync session state if session_id provided
+        if session_id:
+            result = await self.db_session.execute(
+                select(WhatsAppSession).where(WhatsAppSession.id == session_id)
+            )
+            session = result.scalar_one_or_none()
+            if session:
+                session.current_question_index = question_order + 1
+                logger.info(
+                    f"Synced session {session_id} index to {session.current_question_index}"
+                )
 
         if auto_commit:
             await self.db_session.commit()

@@ -18,6 +18,10 @@ class QuestionSchema(BaseModel):
     validation: dict[str, Any] | None = Field(
         None, description="Validation rules (e.g., min, max for numbers)"
     )
+    conditions: dict[str, Any] | None = Field(
+        None,
+        description="Conditional branching rules (Issue 1.1 infrastructure, evaluation in 2.2)",
+    )
 
     @field_validator("type")
     @classmethod

@@ -5,7 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -43,6 +43,10 @@ class WhatsAppSession(Base):
 
     status: Mapped[str] = mapped_column(
         String(50), nullable=False, default=SessionStatus.ACTIVE.value
+    )
+
+    current_question_index: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
     )
 
     meta: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
