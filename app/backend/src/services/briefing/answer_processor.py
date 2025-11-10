@@ -130,6 +130,24 @@ class AnswerProcessorService:
             )
 
             if wa_session.briefing_id != active_briefing.id:
+                # Session is being re-linked to a different briefing
+                # Reset question index only if previous briefing was finalized
+                if wa_session.briefing_id:
+                    old_briefing_result = await self.db_session.execute(
+                        select(Briefing).where(Briefing.id == wa_session.briefing_id)
+                    )
+                    old_briefing = old_briefing_result.scalar_one_or_none()
+
+                    if old_briefing and old_briefing.status in [
+                        BriefingStatus.COMPLETED,
+                        BriefingStatus.CANCELLED,
+                    ]:
+                        wa_session.current_question_index = 1
+                        logger.info(
+                            f"Reset session {wa_session.id} question index to 1 "
+                            f"(previous briefing {old_briefing.id} was {old_briefing.status.value})"
+                        )
+
                 wa_session.briefing_id = active_briefing.id
                 await self.db_session.flush()
 
@@ -139,13 +157,17 @@ class AnswerProcessorService:
                 question_order=current_question,
                 answer=answer_text,
                 auto_commit=False,
+                session_id=wa_session.id,
             )
 
             logger.info(
                 f"Processed answer for briefing {active_briefing.id}, question {current_question}"
             )
 
-            next_question_data = await self.orchestrator.next_question(updated_briefing.id)
+            next_question_data = await self.orchestrator.get_next_question_for_session(
+                session_id=wa_session.id,
+                template_version_id=active_briefing.template_version_id,
+            )
 
             should_complete = await self._should_complete_briefing(updated_briefing)
 

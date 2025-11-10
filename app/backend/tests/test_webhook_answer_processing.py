@@ -570,3 +570,301 @@ async def test_successful_answer_processing_commits_transaction(
     assert saved_message.session_id == whatsapp_session.id
     assert saved_message.direction == MessageDirection.INBOUND.value
     assert saved_message.content["text"]["body"] == "Reforma completa do apartamento"
+
+
+@pytest.mark.asyncio
+async def test_session_index_updated_after_answer_e2e(
+    db_session: AsyncSession,
+    test_org_with_whatsapp: Organization,
+    test_architect: Architect,
+    test_template: BriefingTemplate,
+    mocker: MockerFixture,
+):
+    """
+    E2E test: Verify session.current_question_index is updated in the complete webhook flow.
+
+    This test catches the integration gap where answer_processor must pass session_id
+    to orchestrator.process_answer() for state synchronization to work.
+
+    Issue: Integration bug found in code review - session_id wasn't being passed.
+    """
+    # Create test client
+    test_client = EndClient(
+        organization_id=test_org_with_whatsapp.id,
+        architect_id=test_architect.id,
+        name="Test Client",
+        phone="+5511987654321",
+    )
+    db_session.add(test_client)
+    await db_session.commit()
+    await db_session.refresh(test_client)
+
+    # Create active briefing
+    active_briefing = Briefing(
+        end_client_id=test_client.id,
+        template_version_id=test_template.current_version_id,
+        status=BriefingStatus.IN_PROGRESS,
+        current_question_order=1,
+        answers={},
+    )
+    db_session.add(active_briefing)
+    await db_session.commit()
+    await db_session.refresh(active_briefing)
+
+    # Create WhatsApp session
+    whatsapp_session = WhatsAppSession(
+        end_client_id=test_client.id,
+        briefing_id=active_briefing.id,
+        phone_number=test_client.phone,
+        status=SessionStatus.ACTIVE.value,
+        current_question_index=1,  # Start at 1
+    )
+    db_session.add(whatsapp_session)
+    await db_session.commit()
+    await db_session.refresh(whatsapp_session)
+
+    # Mock WhatsApp send
+    mock_whatsapp_send = mocker.patch(
+        "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
+        new=AsyncMock(return_value={"success": True, "message_id": "wamid.test123"}),
+    )
+
+    # Process first answer (E2E through AnswerProcessorService)
+    processor = AnswerProcessorService(db_session)
+    result = await processor.process_client_answer(
+        phone_number=test_client.phone,
+        answer_text="Reforma completa",
+        wa_message_id="wamid.answer1",
+        session_id=whatsapp_session.id,
+    )
+
+    # Verify answer was processed
+    assert result["success"] is True
+    assert result["question_number"] == 1
+
+    # Refresh session from database
+    await db_session.refresh(whatsapp_session)
+    await db_session.refresh(active_briefing)
+
+    # CRITICAL CHECK: session.current_question_index should be incremented
+    assert whatsapp_session.current_question_index == 2, (
+        "Session index should be incremented after answer processing. "
+        "If this fails, answer_processor is not passing session_id to orchestrator.process_answer()"
+    )
+
+    # Verify briefing state is also in sync
+    assert active_briefing.current_question_order == 2
+    assert "1" in active_briefing.answers
+
+    # Process second answer to verify continued progression
+    result2 = await processor.process_client_answer(
+        phone_number=test_client.phone,
+        answer_text="3 meses",
+        wa_message_id="wamid.answer2",
+        session_id=whatsapp_session.id,
+    )
+
+    assert result2["success"] is True
+
+    # Refresh again
+    await db_session.refresh(whatsapp_session)
+    await db_session.refresh(active_briefing)
+
+    # Verify continued progression
+    assert whatsapp_session.current_question_index == 3
+    assert active_briefing.current_question_order == 3
+    assert "2" in active_briefing.answers
+
+
+@pytest.mark.asyncio
+async def test_session_index_resets_when_starting_new_briefing_after_completion(
+    db_session: AsyncSession,
+    test_org_with_whatsapp: Organization,
+    test_architect: Architect,
+    test_template: BriefingTemplate,
+    mocker: MockerFixture,
+):
+    """
+    E2E test: Session index resets when client starts new briefing after completing previous one.
+
+    Scenario:
+    1. Client completes first briefing (session.current_question_index = 4)
+    2. Architect initiates new briefing for same client
+    3. Session should reset index to 1 for new briefing
+
+    This prevents the bug where stale session index causes new briefing to skip questions.
+    """
+    # Create test client
+    test_client = EndClient(
+        organization_id=test_org_with_whatsapp.id,
+        architect_id=test_architect.id,
+        name="Returning Client",
+        phone="+5511988776655",
+    )
+    db_session.add(test_client)
+    await db_session.commit()
+    await db_session.refresh(test_client)
+
+    # Create and COMPLETE first briefing
+    first_briefing = Briefing(
+        end_client_id=test_client.id,
+        template_version_id=test_template.current_version_id,
+        status=BriefingStatus.COMPLETED,  # Already completed
+        current_question_order=4,  # Finished at question 3 (now at 4)
+        answers={"1": "Reforma", "2": "3 meses", "3": "R$ 50k"},
+    )
+    db_session.add(first_briefing)
+    await db_session.commit()
+    await db_session.refresh(first_briefing)
+
+    # Create session linked to first briefing with stale index
+    whatsapp_session = WhatsAppSession(
+        end_client_id=test_client.id,
+        briefing_id=first_briefing.id,
+        phone_number=test_client.phone,
+        status=SessionStatus.ACTIVE.value,
+        current_question_index=4,  # Stale from completed briefing
+    )
+    db_session.add(whatsapp_session)
+    await db_session.commit()
+    await db_session.refresh(whatsapp_session)
+
+    # Architect initiates NEW briefing for same client
+    second_briefing = Briefing(
+        end_client_id=test_client.id,
+        template_version_id=test_template.current_version_id,
+        status=BriefingStatus.IN_PROGRESS,
+        current_question_order=1,
+        answers={},
+    )
+    db_session.add(second_briefing)
+    await db_session.commit()
+    await db_session.refresh(second_briefing)
+
+    # Mock WhatsApp send
+    mocker.patch(
+        "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
+        new=AsyncMock(return_value={"success": True, "message_id": "wamid.new123"}),
+    )
+
+    # Process first answer in NEW briefing
+    processor = AnswerProcessorService(db_session)
+    result = await processor.process_client_answer(
+        phone_number=test_client.phone,
+        answer_text="Casa nova",
+        wa_message_id="wamid.new_briefing_answer1",
+        session_id=whatsapp_session.id,
+    )
+
+    # Verify answer was processed
+    assert result["success"] is True
+
+    # Refresh session
+    await db_session.refresh(whatsapp_session)
+    await db_session.refresh(second_briefing)
+
+    # CRITICAL: Session should be re-linked to new briefing
+    assert whatsapp_session.briefing_id == second_briefing.id
+
+    # CRITICAL: Session index should reset to 2 (after answering question 1)
+    assert whatsapp_session.current_question_index == 2, (
+        "Session index should reset when previous briefing was COMPLETED. "
+        f"Expected 2 (after answering q1), got {whatsapp_session.current_question_index}"
+    )
+
+    # Verify new briefing progressed correctly
+    assert second_briefing.current_question_order == 2
+    assert "1" in second_briefing.answers
+    assert second_briefing.answers["1"] == "Casa nova"
+
+
+@pytest.mark.asyncio
+async def test_session_index_preserved_when_resuming_same_briefing(
+    db_session: AsyncSession,
+    test_org_with_whatsapp: Organization,
+    test_architect: Architect,
+    test_template: BriefingTemplate,
+    mocker: MockerFixture,
+):
+    """
+    E2E test: Session index is preserved when client resumes same IN_PROGRESS briefing.
+
+    Scenario:
+    1. Client answers 2 questions (paused at index 3)
+    2. Client returns days later
+    3. Session index should stay at 3 (not reset)
+    4. Client continues from question 3
+
+    This ensures clients can pause and resume without losing progress.
+    """
+    # Create test client
+    test_client = EndClient(
+        organization_id=test_org_with_whatsapp.id,
+        architect_id=test_architect.id,
+        name="Paused Client",
+        phone="+5511977665544",
+    )
+    db_session.add(test_client)
+    await db_session.commit()
+    await db_session.refresh(test_client)
+
+    # Create IN_PROGRESS briefing (partially completed)
+    active_briefing = Briefing(
+        end_client_id=test_client.id,
+        template_version_id=test_template.current_version_id,
+        status=BriefingStatus.IN_PROGRESS,
+        current_question_order=3,  # Paused at question 3
+        answers={"1": "Ampliação", "2": "6 meses"},  # Answered 2 questions
+    )
+    db_session.add(active_briefing)
+    await db_session.commit()
+    await db_session.refresh(active_briefing)
+
+    # Create session linked to this briefing (paused state)
+    whatsapp_session = WhatsAppSession(
+        end_client_id=test_client.id,
+        briefing_id=active_briefing.id,
+        phone_number=test_client.phone,
+        status=SessionStatus.ACTIVE.value,
+        current_question_index=3,  # Paused at question 3
+    )
+    db_session.add(whatsapp_session)
+    await db_session.commit()
+    await db_session.refresh(whatsapp_session)
+
+    # Mock WhatsApp send
+    mocker.patch(
+        "src.services.briefing.answer_processor.WhatsAppService.send_text_message",
+        new=AsyncMock(return_value={"success": True, "message_id": "wamid.resume123"}),
+    )
+
+    # Client returns and answers question 3 (resumption)
+    processor = AnswerProcessorService(db_session)
+    result = await processor.process_client_answer(
+        phone_number=test_client.phone,
+        answer_text="R$ 100k",  # Answer to question 3
+        wa_message_id="wamid.resume_answer",
+        session_id=whatsapp_session.id,
+    )
+
+    # Verify answer was processed
+    assert result["success"] is True
+
+    # Refresh session
+    await db_session.refresh(whatsapp_session)
+    await db_session.refresh(active_briefing)
+
+    # CRITICAL: Briefing ID should stay the same (not re-linked)
+    assert whatsapp_session.briefing_id == active_briefing.id
+
+    # CRITICAL: Session index should NOT reset (client is resuming)
+    # Should be 4 (moved from 3 to 4 after answering question 3)
+    assert whatsapp_session.current_question_index == 4, (
+        "Session index should NOT reset when resuming same IN_PROGRESS briefing. "
+        f"Expected 4 (after answering q3), got {whatsapp_session.current_question_index}"
+    )
+
+    # Verify briefing progressed from where it left off
+    assert active_briefing.current_question_order == 4
+    assert "3" in active_briefing.answers
+    assert active_briefing.answers["3"] == "R$ 100k"
