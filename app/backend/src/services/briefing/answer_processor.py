@@ -1,12 +1,14 @@
 """Service for processing client answers received via WhatsApp."""
 
 import logging
+import re
 from datetime import datetime
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from src.db.models.architect import Architect
 from src.db.models.briefing import Briefing, BriefingStatus
@@ -34,6 +36,199 @@ class AnswerProcessorService:
         """
         self.db_session = db_session
         self.orchestrator = BriefingOrchestrator(db_session)
+
+    def _detect_special_command(self, answer_text: str) -> dict[str, Any] | None:
+        """Detect special commands in answer text.
+
+        Recognizes commands: pular/pula, voltar, não sei/nao sei
+        Commands must be standalone (not mixed with other text).
+
+        Args:
+            answer_text: The answer text from user
+
+        Returns:
+            dict with command info {"command": "pular"|"voltar"|"não sei"}, or None if not a command
+        """
+        normalized = answer_text.strip().lower()
+
+        # Command must be standalone (no other text)
+        if not re.match(r"^[a-záàâãéêíóôõúç\s]+$", normalized):
+            return None
+
+        # Pular command and variants
+        if normalized in ["pular", "pula", "skip"]:
+            return {"command": "pular"}
+
+        # Voltar command
+        if normalized in ["voltar", "volta"]:
+            return {"command": "voltar"}
+
+        # Não sei command and variants
+        if normalized in ["não sei", "nao sei", "n sei", "ñ sei"]:
+            return {"command": "não sei"}
+
+        return None
+
+    async def _validate_answer(
+        self, answer_text: str, question: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Validate answer against question type and validation rules.
+
+        Args:
+            answer_text: The answer text
+            question: Question dict from template
+
+        Returns:
+            dict with error {"error": str, "message": str} or success with normalized answer
+            {"normalized_answer": str}, or None if validation passes with original answer
+        """
+        question_type = question.get("type", "text")
+
+        # Number validation
+        if question_type == "number":
+            # Remove formatting (dots, commas, spaces)
+            cleaned = re.sub(r"[.,\s]", "", answer_text)
+            if not cleaned.isdigit():
+                return {
+                    "success": False,
+                    "error": "validation_error",
+                    "message": "Por favor, envie um número válido para esta pergunta.",
+                }
+
+        # Multiple choice validation
+        elif question_type == "multiple_choice":
+            options = question.get("options", [])
+            if not options:
+                return None  # No options defined, accept anything
+
+            # Case-insensitive match
+            answer_lower = answer_text.lower().strip()
+            matched_option = None
+
+            for option in options:
+                option_lower = option.lower()
+                # Exact match or partial match (at least 3 chars)
+                if answer_lower == option_lower or (
+                    len(answer_lower) >= 3 and answer_lower in option_lower
+                ):
+                    matched_option = option
+                    break
+
+            if not matched_option:
+                options_text = ", ".join(options)
+                return {
+                    "success": False,
+                    "error": "validation_error",
+                    "message": f"Opção inválida. Escolha uma das opções válidas: {options_text}",
+                }
+
+            # Return normalized answer (correct case from option)
+            return {"normalized_answer": matched_option}
+
+        return None
+
+    async def _handle_pular_command(
+        self, briefing: Briefing, session: WhatsAppSession, current_question: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Handle 'pular' command to skip optional questions.
+
+        Args:
+            briefing: Current briefing
+            session: WhatsApp session
+            current_question: Current question dict
+
+        Returns:
+            Result dict with success status
+        """
+        # Check if question is required
+        if current_question.get("required", False):
+            return {
+                "success": False,
+                "error": "cannot_skip_required",
+                "message": "Esta pergunta é obrigatória e não pode ser pulada. Por favor, responda.",
+            }
+
+        # Skip to next question
+        briefing.current_question_order += 1
+        session.current_question_index += 1
+        await self.db_session.flush()
+
+        logger.info(
+            f"Skipped optional question {current_question['order']} " f"for briefing {briefing.id}"
+        )
+
+        return {"success": True, "command_executed": "pular"}
+
+    async def _handle_voltar_command(
+        self, briefing: Briefing, session: WhatsAppSession
+    ) -> dict[str, Any]:
+        """Handle 'voltar' command to go back to previous question.
+
+        Args:
+            briefing: Current briefing
+            session: WhatsApp session
+
+        Returns:
+            Result dict with success status
+        """
+        # Check if at first question
+        if briefing.current_question_order <= 1:
+            return {
+                "success": False,
+                "error": "cannot_go_back",
+                "message": "Você já está na primeira pergunta. Não é possível voltar.",
+            }
+
+        # Go back to previous question
+        briefing.current_question_order -= 1
+        session.current_question_index -= 1
+        await self.db_session.flush()
+
+        logger.info(
+            f"Went back to question {briefing.current_question_order} "
+            f"for briefing {briefing.id}"
+        )
+
+        return {"success": True, "command_executed": "voltar"}
+
+    async def _handle_nao_sei_command(
+        self, briefing: Briefing, session: WhatsAppSession, current_question: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Handle 'não sei' command.
+
+        For required questions: save "não sei" as answer and progress
+        For optional questions: skip question without saving
+
+        Args:
+            briefing: Current briefing
+            session: WhatsApp session
+            current_question: Current question dict
+
+        Returns:
+            Result dict with success status
+        """
+        question_order = current_question["order"]
+        is_required = current_question.get("required", False)
+
+        if is_required:
+            # Save "não sei" as the answer for required questions
+            if briefing.answers is None:
+                briefing.answers = {}
+            briefing.answers[str(question_order)] = "não sei"
+            # Mark JSONB field as modified (SQLAlchemy doesn't auto-detect dict changes)
+            flag_modified(briefing, "answers")
+
+        # Progress to next question (for both required and optional)
+        briefing.current_question_order += 1
+        session.current_question_index += 1
+        await self.db_session.flush()
+
+        logger.info(
+            f"Handled 'não sei' for question {question_order} "
+            f"(required={is_required}) for briefing {briefing.id}"
+        )
+
+        return {"success": True, "command_executed": "não sei"}
 
     async def process_client_answer(
         self,
@@ -151,11 +346,129 @@ class AnswerProcessorService:
                 wa_session.briefing_id = active_briefing.id
                 await self.db_session.flush()
 
+            # Get current question from template
+            template_result = await self.db_session.execute(
+                select(TemplateVersion).where(
+                    TemplateVersion.id == active_briefing.template_version_id
+                )
+            )
+            template_version = template_result.scalar_one()
+            current_question_order = active_briefing.current_question_order
+
+            current_question_data = next(
+                (q for q in template_version.questions if q["order"] == current_question_order),
+                None,
+            )
+
+            if not current_question_data:
+                raise ValueError(f"Question {current_question_order} not found in template")
+
+            # Detect special commands
+            command_detected = self._detect_special_command(answer_text)
+
+            if command_detected:
+                command = command_detected["command"]
+                logger.info(f"Detected command '{command}' for briefing {active_briefing.id}")
+
+                # Execute command
+                if command == "pular":
+                    command_result = await self._handle_pular_command(
+                        active_briefing, wa_session, current_question_data
+                    )
+                elif command == "voltar":
+                    command_result = await self._handle_voltar_command(active_briefing, wa_session)
+                elif command == "não sei":
+                    command_result = await self._handle_nao_sei_command(
+                        active_briefing, wa_session, current_question_data
+                    )
+                else:
+                    command_result = {"success": False, "error": "unknown_command"}
+
+                # If command failed, return error immediately
+                if not command_result.get("success"):
+                    await self.db_session.rollback()
+                    return command_result
+
+                # Command succeeded - determine next action
+                await self.db_session.refresh(active_briefing)
+
+                next_question_data = await self.orchestrator.get_next_question_for_session(
+                    session_id=wa_session.id,
+                    template_version_id=active_briefing.template_version_id,
+                )
+
+                should_complete = await self._should_complete_briefing(active_briefing)
+
+                if should_complete:
+                    completed_briefing = await self.orchestrator.complete_briefing(
+                        active_briefing.id, auto_commit=False
+                    )
+                    result_data = {
+                        **command_result,
+                        "briefing_id": completed_briefing.id,
+                        "question_number": current_question_order,
+                        "next_question": None,
+                        "completed": True,
+                        "status": BriefingStatus.COMPLETED.value,
+                    }
+                    completion_message_needed = True
+                elif next_question_data:
+                    next_question_text = next_question_data["question"]
+                    result_data = {
+                        **command_result,
+                        "briefing_id": active_briefing.id,
+                        "question_number": current_question_order,
+                        "next_question": next_question_text,
+                        "completed": False,
+                        "status": active_briefing.status.value,
+                    }
+                else:
+                    result_data = {
+                        **command_result,
+                        "briefing_id": active_briefing.id,
+                        "question_number": current_question_order,
+                        "next_question": None,
+                        "completed": False,
+                        "status": active_briefing.status.value,
+                    }
+
+                await self.db_session.commit()
+                await self._record_processed_webhook(wa_message_id, result_data)
+
+                if completion_message_needed:
+                    await self._send_completion_message(client, phone_number_id)
+                elif next_question_text:
+                    await self._send_next_question(
+                        client=client,
+                        question_text=next_question_text,
+                        phone_number_id=phone_number_id,
+                    )
+
+                return result_data
+
+            # Not a command - validate answer
+            validation_result = await self._validate_answer(answer_text, current_question_data)
+
+            if validation_result and "error" in validation_result:
+                logger.warning(
+                    f"Validation failed for briefing {active_briefing.id}: "
+                    f"{validation_result['message']}"
+                )
+                # Record webhook even for validation errors (idempotency)
+                await self._record_processed_webhook(wa_message_id, validation_result)
+                return validation_result
+
+            # Validation passed - use normalized answer if provided (e.g., for multiple_choice)
+            answer_to_save = answer_text
+            if validation_result and "normalized_answer" in validation_result:
+                answer_to_save = validation_result["normalized_answer"]
+
+            # Process answer normally
             current_question = active_briefing.current_question_order
             updated_briefing = await self.orchestrator.process_answer(
                 briefing_id=active_briefing.id,
                 question_order=current_question,
-                answer=answer_text,
+                answer=answer_to_save,
                 auto_commit=False,
                 session_id=wa_session.id,
             )
