@@ -69,7 +69,6 @@ dmypy.json
 .ruff_cache/
 
 # Prompts & Planning
-CLAUDE.md
 AGENTS.md
-docs/
 planning/
+.claude/

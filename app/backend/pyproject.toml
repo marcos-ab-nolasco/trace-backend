@@ -39,6 +39,8 @@ dev = [
     "mypy",
     "types-python-jose",
     "fakeredis",
+    "chromadb>=0.4.22",
+    "tiktoken>=0.5.2",
 ]
 
 [tool.hatch.version]
