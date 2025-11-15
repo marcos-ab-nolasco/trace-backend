@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Uuid, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -12,6 +12,7 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.briefing_template import BriefingTemplate
+    from src.db.models.information_requirement import InformationRequirement
 
 
 class TemplateVersion(Base):
@@ -30,6 +31,9 @@ class TemplateVersion(Base):
     change_description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # NEW: AI context for conversational briefing
+    context_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -38,6 +42,9 @@ class TemplateVersion(Base):
         "BriefingTemplate",
         back_populates="versions",
         foreign_keys=[template_id],
+    )
+    requirements: Mapped[list["InformationRequirement"]] = relationship(
+        "InformationRequirement", back_populates="template_version", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

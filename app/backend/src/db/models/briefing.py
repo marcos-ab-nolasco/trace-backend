@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, Uuid, func, text
+from sqlalchemy import DateTime, ForeignKey, Index, Text, Uuid, func, text
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -14,6 +14,7 @@ from src.db.session import Base
 if TYPE_CHECKING:
     from src.db.models.briefing_analytics import BriefingAnalytics
     from src.db.models.conversation import Conversation
+    from src.db.models.conversation_message import ConversationMessage
     from src.db.models.end_client import EndClient
     from src.db.models.template_version import TemplateVersion
     from src.db.models.whatsapp_session import WhatsAppSession
@@ -66,6 +67,11 @@ class Briefing(Base):
     current_question_order: Mapped[int] = mapped_column(nullable=False, default=1)
     answers: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
 
+    # NEW: Information-based state (not index-based)
+    information_state: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    gathered_information: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    conversation_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -84,6 +90,9 @@ class Briefing(Base):
     )
     whatsapp_sessions: Mapped[list["WhatsAppSession"]] = relationship(
         "WhatsAppSession", back_populates="briefing"
+    )
+    conversation_messages: Mapped[list["ConversationMessage"]] = relationship(
+        "ConversationMessage", back_populates="briefing", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

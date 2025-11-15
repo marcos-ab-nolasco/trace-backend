@@ -4,7 +4,9 @@ from src.db.models.briefing import Briefing, BriefingStatus
 from src.db.models.briefing_analytics import BriefingAnalytics
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.conversation import Conversation, ConversationType
+from src.db.models.conversation_message import ConversationMessage
 from src.db.models.end_client import EndClient
+from src.db.models.information_requirement import InformationRequirement
 from src.db.models.message import Message
 from src.db.models.organization import Organization
 from src.db.models.organization_whatsapp_account import OrganizationWhatsAppAccount
@@ -18,6 +20,7 @@ from src.db.models.whatsapp_session import SessionStatus, WhatsAppSession
 __all__ = [
     "Conversation",
     "ConversationType",
+    "ConversationMessage",
     "Message",
     "Organization",
     "OrganizationWhatsAppAccount",
@@ -29,6 +32,7 @@ __all__ = [
     "BriefingAnalytics",
     "BriefingTemplate",
     "TemplateVersion",
+    "InformationRequirement",
     "ProjectType",
     "ProcessedWebhook",
     "WhatsAppAccount",

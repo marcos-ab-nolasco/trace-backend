@@ -90,13 +90,13 @@
 
     test-migrate: ## Apply migrations to test database
 	@echo "Applying migrations to test database..."
-	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5433/fullstack_test" .venv/bin/alembic upgrade head
+	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5434/fullstack_test" .venv/bin/alembic upgrade head
 	@echo "Test database migrations applied!"
 
     test-migrate-reset: ## Reset test database migrations (downgrade to base then upgrade)
 	@echo "Resetting test database migrations..."
-	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5433/fullstack_test" .venv/bin/alembic downgrade base
-	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5433/fullstack_test" .venv/bin/alembic upgrade head
+	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5434/fullstack_test" .venv/bin/alembic downgrade base
+	cd app/backend && DATABASE_URL="postgresql+asyncpg://test:test@localhost:5434/fullstack_test" .venv/bin/alembic upgrade head
 	@echo "Test database migrations reset complete!"
 
     test-reset: ## Completely reset test database (down + up + migrate)
