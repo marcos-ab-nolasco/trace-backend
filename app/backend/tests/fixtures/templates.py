@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.project_type import ProjectType
-from src.db.models.template_version import TemplateVersion
 
 
 @pytest.fixture
@@ -73,29 +72,32 @@ async def test_template(
     db_session: AsyncSession, test_project_type: ProjectType
 ) -> BriefingTemplate:
     """Create test briefing template with 3 questions."""
-    template = BriefingTemplate(
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+
+    from tests.factories import BriefingTemplateFactory
+
+    template = await BriefingTemplateFactory.create_with_version_async(
         name="Template Residencial",
-        project_type_id=test_project_type.id,
+        project_type=test_project_type,
         is_global=True,
         description="Template para projetos residenciais",
+        version_kwargs={
+            "questions": [
+                {"order": 1, "question": "Qual tipo de imóvel?", "type": "text", "required": True},
+                {"order": 2, "question": "Quantos quartos?", "type": "text", "required": True},
+                {"order": 3, "question": "Possui terreno?", "type": "text", "required": True},
+            ]
+        },
     )
-    db_session.add(template)
-    await db_session.flush()
 
-    version = TemplateVersion(
-        template_id=template.id,
-        version_number=1,
-        questions=[
-            {"order": 1, "question": "Qual tipo de imóvel?", "type": "text", "required": True},
-            {"order": 2, "question": "Quantos quartos?", "type": "text", "required": True},
-            {"order": 3, "question": "Possui terreno?", "type": "text", "required": True},
-        ],
-        is_active=True,
+    # Eager load current_version to avoid lazy loading issues
+    stmt = (
+        select(BriefingTemplate)
+        .where(BriefingTemplate.id == template.id)
+        .options(selectinload(BriefingTemplate.current_version))
     )
-    db_session.add(version)
-    await db_session.flush()
+    result = await db_session.execute(stmt)
+    template = result.scalar_one()
 
-    template.current_version_id = version.id
-    await db_session.commit()
-    await db_session.refresh(template)
     return template

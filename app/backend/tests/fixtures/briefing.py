@@ -155,29 +155,25 @@ async def test_whatsapp_session(
 @pytest.fixture
 async def briefing_with_session(
     db_session: AsyncSession,
-    test_end_client: EndClient,
-    template_version_simple: TemplateVersion,
-) -> tuple[Briefing, WhatsAppSession]:
+    test_end_client,
+    template_version_simple,
+):
     """Create briefing with associated WhatsApp session for progression tests."""
-    briefing = Briefing(
-        end_client_id=test_end_client.id,
-        template_version_id=template_version_simple.id,
+    from tests.factories import BriefingFactory, WhatsAppSessionFactory
+
+    briefing = await BriefingFactory.create_async(
+        end_client=test_end_client,
+        template_version=template_version_simple,
         current_question_order=1,
         answers={},
         status="IN_PROGRESS",
     )
-    db_session.add(briefing)
-    await db_session.commit()
-    await db_session.refresh(briefing)
 
-    session = WhatsAppSession(
-        end_client_id=test_end_client.id,
-        briefing_id=briefing.id,
+    session = await WhatsAppSessionFactory.create_async(
+        end_client=test_end_client,
+        briefing=briefing,
         phone_number=test_end_client.phone,
-        status="ACTIVE",
+        active=True,
     )
-    db_session.add(session)
-    await db_session.commit()
-    await db_session.refresh(session)
 
     return briefing, session

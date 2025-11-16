@@ -35,9 +35,7 @@ class VectorStore:
 
         # OpenAI client for embeddings
         if settings.OPENAI_API_KEY:
-            self.openai_client = AsyncOpenAI(
-                api_key=settings.OPENAI_API_KEY.get_secret_value()
-            )
+            self.openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY.get_secret_value())
         else:
             raise ValueError("OPENAI_API_KEY not configured")
 

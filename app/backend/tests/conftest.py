@@ -24,3 +24,38 @@ def pytest_configure(config: pytest.Config) -> None:
 
 
 from tests.fixtures import *  # noqa: E402, F403
+
+
+# Factory-boy configuration
+@pytest.fixture(autouse=True)
+def _configure_factories(db_session):  # noqa: F811
+    """Configure factory-boy to use the test database session.
+
+    This fixture runs automatically before each test to ensure all factories
+    use the correct async database session.
+    """
+    from tests.factories import (
+        ArchitectFactory,
+        AuthorizedPhoneFactory,
+        BriefingFactory,
+        BriefingTemplateFactory,
+        EndClientFactory,
+        OrganizationFactory,
+        ProjectTypeFactory,
+        TemplateVersionFactory,
+        WhatsAppSessionFactory,
+    )
+
+    # Set the session for all factories
+    for factory_class in [
+        OrganizationFactory,
+        ArchitectFactory,
+        EndClientFactory,
+        AuthorizedPhoneFactory,
+        ProjectTypeFactory,
+        TemplateVersionFactory,
+        BriefingTemplateFactory,
+        BriefingFactory,
+        WhatsAppSessionFactory,
+    ]:
+        factory_class._meta.sqlalchemy_session = db_session

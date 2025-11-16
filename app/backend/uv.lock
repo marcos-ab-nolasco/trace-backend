@@ -139,11 +139,13 @@ dependencies = [
 dev = [
     { name = "black" },
     { name = "chromadb" },
+    { name = "factory-boy" },
     { name = "fakeredis" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
+    { name = "pytest-factoryboy" },
     { name = "pytest-mock" },
     { name = "python-dotenv" },
     { name = "ruff" },
@@ -160,6 +162,7 @@ requires-dist = [
     { name = "black", marker = "extra == 'dev'" },
     { name = "chromadb", marker = "extra == 'dev'", specifier = ">=0.4.22" },
     { name = "cryptography", specifier = ">=41.0.0" },
+    { name = "factory-boy", marker = "extra == 'dev'" },
     { name = "fakeredis", marker = "extra == 'dev'" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -170,6 +173,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "pytest-cov", marker = "extra == 'dev'" },
+    { name = "pytest-factoryboy", marker = "extra == 'dev'" },
     { name = "pytest-mock", marker = "extra == 'dev'" },
     { name = "python-dotenv", marker = "extra == 'dev'" },
     { name = "python-jose", extras = ["cryptography"] },
@@ -771,6 +775,30 @@ wheels = [
 ]
 
 [[package]]
+name = "factory-boy"
+version = "3.3.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "faker" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ba/98/75cacae9945f67cfe323829fc2ac451f64517a8a330b572a06a323997065/factory_boy-3.3.3.tar.gz", hash = "sha256:866862d226128dfac7f2b4160287e899daf54f2612778327dd03d0e2cb1e3d03", size = 164146, upload-time = "2025-02-03T09:49:04.433Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/27/8d/2bc5f5546ff2ccb3f7de06742853483ab75bf74f36a92254702f8baecc79/factory_boy-3.3.3-py2.py3-none-any.whl", hash = "sha256:1c39e3289f7e667c4285433f305f8d506efc2fe9c73aaea4151ebd5cdea394fc", size = 37036, upload-time = "2025-02-03T09:49:01.659Z" },
+]
+
+[[package]]
+name = "faker"
+version = "38.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "tzdata" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/04/05/206c151fe8ca9c8e46963d6c8b6e2e281f272009dad30fe3792005393a5e/faker-38.0.0.tar.gz", hash = "sha256:797aa03fa86982dfb6206918acc10ebf3655bdaa89ddfd3e668d7cc69537331a", size = 1935705, upload-time = "2025-11-12T01:47:39.586Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4d/1e/e6d1940d2c2617d7e6a0a3fdd90e506ff141715cdc4c3ecd7217d937e656/faker-38.0.0-py3-none-any.whl", hash = "sha256:ad4ea6fbfaac2a75d92943e6a79c81f38ecff92378f6541dea9a677ec789a5b2", size = 1975561, upload-time = "2025-11-12T01:47:36.672Z" },
+]
+
+[[package]]
 name = "fakeredis"
 version = "2.32.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1114,6 +1142,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/cf/8c/f834fbf984f691b4f7ff60f50b514cc3de5cc08abfc3295564dd89c5e2e7/importlib_resources-6.5.2.tar.gz", hash = "sha256:185f87adef5bcc288449d98fb4fba07cea78bc036455dd44c5fc4a2fe78fed2c", size = 44693, upload-time = "2025-01-03T18:51:56.698Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a4/ed/1f1afb2e9e7f38a545d628f864d562a5ae64fe6f7a10e28ffb9b185b4e89/importlib_resources-6.5.2-py3-none-any.whl", hash = "sha256:789cfdc3ed28c78b67a06acb8126751ced69a3d5f79c095a98298cd8a760ccec", size = 37461, upload-time = "2025-01-03T18:51:54.306Z" },
+]
+
+[[package]]
+name = "inflection"
+version = "0.5.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/7e/691d061b7329bc8d54edbf0ec22fbfb2afe61facb681f9aaa9bff7a27d04/inflection-0.5.1.tar.gz", hash = "sha256:1a29730d366e996aaacffb2f1f1cb9593dc38e2ddd30c91250c6dde09ea9b417", size = 15091, upload-time = "2020-08-22T08:16:29.139Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/91/aa6bde563e0085a02a435aa99b49ef75b0a4b062635e606dab23ce18d720/inflection-0.5.1-py2.py3-none-any.whl", hash = "sha256:f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2", size = 9454, upload-time = "2020-08-22T08:16:27.816Z" },
 ]
 
 [[package]]
@@ -2273,6 +2310,22 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-factoryboy"
+version = "2.8.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "factory-boy" },
+    { name = "inflection" },
+    { name = "packaging" },
+    { name = "pytest" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/8a/a0f9c58bf176b0d39b630a6e29cccebec9a429dfeb62204bbb9b632fb798/pytest_factoryboy-2.8.1.tar.gz", hash = "sha256:2221d48b31b8b8ccaa739c6a162fb50a43a4de6dff6043f249d2807a3462548d", size = 16906, upload-time = "2025-07-01T04:05:38.901Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/06/2f/4f73a79196b4acb0f902520a805caa22f8ba0adbecdfb028a371404c2537/pytest_factoryboy-2.8.1-py3-none-any.whl", hash = "sha256:91c762cb236bf34b11efdf2e54bafae33114488235621e8b2c4bd9fd77838784", size = 16413, upload-time = "2025-07-01T04:05:37.344Z" },
+]
+
+[[package]]
 name = "pytest-mock"
 version = "3.15.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3034,6 +3087,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/55/e3/70399cb7dd41c10ac53367ae42139cf4b1ca5f36bb3dc6c9d33acdb43655/typing_inspection-0.4.2.tar.gz", hash = "sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464", size = 75949, upload-time = "2025-10-01T02:14:41.687Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/dc/9b/47798a6c91d8bdb567fe2698fe81e0c6b7cb7ef4d13da4114b41d239f65d/typing_inspection-0.4.2-py3-none-any.whl", hash = "sha256:4ed1cacbdc298c220f1bd249ed5287caa16f34d44ef4e9c3d0cbad5b521545e7", size = 14611, upload-time = "2025-10-01T02:14:40.154Z" },
+]
+
+[[package]]
+name = "tzdata"
+version = "2025.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/32/1a225d6164441be760d75c2c42e2780dc0873fe382da3e98a2e1e48361e5/tzdata-2025.2.tar.gz", hash = "sha256:b60a638fcc0daffadf82fe0f57e53d06bdec2f36c4df66280ae79bce6bd6f2b9", size = 196380, upload-time = "2025-03-23T13:54:43.652Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5c/23/c7abc0ca0a1526a0774eca151daeb8de62ec457e77262b66b359c3c7679e/tzdata-2025.2-py2.py3-none-any.whl", hash = "sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8", size = 347839, upload-time = "2025-03-23T13:54:41.845Z" },
 ]
 
 [[package]]
