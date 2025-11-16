@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from src.db.models.architect import Architect
 from src.db.models.briefing_template import BriefingTemplate
+from src.db.models.information_requirement import InformationRequirement
 from src.db.models.project_type import ProjectType
 from src.db.models.template_version import TemplateVersion
 from src.schemas.template import BriefingTemplateCreate, BriefingTemplateUpdate
@@ -68,7 +69,7 @@ class TemplateService:
         query = (
             select(BriefingTemplate)
             .options(
-                selectinload(BriefingTemplate.current_version),
+                selectinload(BriefingTemplate.versions).selectinload(TemplateVersion.requirements),
                 selectinload(BriefingTemplate.project_type),
             )
             .where(and_(*filters))
@@ -93,7 +94,7 @@ class TemplateService:
         query = (
             select(BriefingTemplate)
             .options(
-                selectinload(BriefingTemplate.current_version),
+                selectinload(BriefingTemplate.versions).selectinload(TemplateVersion.requirements),
                 selectinload(BriefingTemplate.project_type),
             )
             .where(
@@ -137,20 +138,38 @@ class TemplateService:
         version = TemplateVersion(
             template_id=template.id,
             version_number=1,
-            questions=[q.model_dump() for q in template_data.initial_version.questions],
             change_description=template_data.initial_version.change_description,
             is_active=True,
+            is_current=True,
         )
         self.db_session.add(version)
         await self.db_session.flush()
 
-        template.current_version_id = version.id
+        # Create information requirements for the version
+        for req_data in template_data.initial_version.requirements:
+            requirement = InformationRequirement(
+                template_id=version.id,
+                field_name=req_data.field_name,
+                field_type=req_data.field_type,
+                required=req_data.required,
+                priority=req_data.priority,
+                description=req_data.description,
+                validation_rules=req_data.validation_rules,
+                suggested_questions=req_data.suggested_questions,
+            )
+            self.db_session.add(requirement)
+
         await self.db_session.commit()
 
-        await self.db_session.refresh(template)
-        await self.db_session.refresh(template, ["current_version"])
-
-        return template
+        # Re-fetch template with versions loaded
+        result = await self.db_session.execute(
+            select(BriefingTemplate)
+            .options(
+                selectinload(BriefingTemplate.versions).selectinload(TemplateVersion.requirements)
+            )
+            .where(BriefingTemplate.id == template.id)
+        )
+        return result.scalar_one()
 
     async def update_template(
         self,
@@ -164,7 +183,7 @@ class TemplateService:
 
         template_result = await self.db_session.execute(
             select(BriefingTemplate)
-            .options(selectinload(BriefingTemplate.current_version))
+            .options(selectinload(BriefingTemplate.versions))
             .where(BriefingTemplate.id == template_id)
         )
         template = template_result.scalar_one_or_none()
@@ -186,7 +205,7 @@ class TemplateService:
             template.project_type_id = project_type.id
             template.category = update_data.project_type_slug
 
-        if update_data.questions is not None:
+        if update_data.requirements is not None:
             version_result = await self.db_session.execute(
                 select(TemplateVersion.version_number)
                 .where(TemplateVersion.template_id == template_id)
@@ -195,30 +214,53 @@ class TemplateService:
             )
             max_version = version_result.scalar_one_or_none() or 0
 
-            if template.current_version_id:
-                current_version_result = await self.db_session.execute(
-                    select(TemplateVersion).where(TemplateVersion.id == template.current_version_id)
+            # Set all existing versions to not current
+            current_version_result = await self.db_session.execute(
+                select(TemplateVersion).where(
+                    TemplateVersion.template_id == template_id,
+                    TemplateVersion.is_current == True,  # noqa: E712
                 )
-                current_version = current_version_result.scalar_one_or_none()
-                if current_version:
-                    current_version.is_active = False
+            )
+            current_version = current_version_result.scalar_one_or_none()
+            if current_version:
+                current_version.is_active = False
+                current_version.is_current = False
 
             new_version = TemplateVersion(
                 template_id=template.id,
                 version_number=max_version + 1,
-                questions=[q.model_dump() for q in update_data.questions],
                 change_description=update_data.change_description,
                 is_active=True,
+                is_current=True,
             )
             self.db_session.add(new_version)
             await self.db_session.flush()
-            template.current_version_id = new_version.id
+
+            # Create information requirements for the new version
+            for req_data in update_data.requirements:
+                requirement = InformationRequirement(
+                    template_id=new_version.id,
+                    field_name=req_data.field_name,
+                    field_type=req_data.field_type,
+                    required=req_data.required,
+                    priority=req_data.priority,
+                    description=req_data.description,
+                    validation_rules=req_data.validation_rules,
+                    suggested_questions=req_data.suggested_questions,
+                )
+                self.db_session.add(requirement)
 
         await self.db_session.commit()
-        await self.db_session.refresh(template)
-        await self.db_session.refresh(template, ["current_version"])
 
-        return template
+        # Re-fetch template with versions loaded
+        result = await self.db_session.execute(
+            select(BriefingTemplate)
+            .options(
+                selectinload(BriefingTemplate.versions).selectinload(TemplateVersion.requirements)
+            )
+            .where(BriefingTemplate.id == template.id)
+        )
+        return result.scalar_one()
 
     async def get_template_versions(
         self,
@@ -233,6 +275,7 @@ class TemplateService:
 
         versions_result = await self.db_session.execute(
             select(TemplateVersion)
+            .options(selectinload(TemplateVersion.requirements))
             .where(TemplateVersion.template_id == template_id)
             .order_by(TemplateVersion.version_number.desc())
         )
@@ -249,7 +292,7 @@ class TemplateService:
         project_type = await self._get_project_type(project_type_slug)
 
         filters = [
-            TemplateVersion.id == BriefingTemplate.current_version_id,
+            TemplateVersion.is_current == True,  # noqa: E712
             TemplateVersion.is_active,
             or_(
                 BriefingTemplate.is_global,
@@ -269,7 +312,8 @@ class TemplateService:
             select(TemplateVersion)
             .join(BriefingTemplate, TemplateVersion.template_id == BriefingTemplate.id)
             .options(
-                selectinload(TemplateVersion.template).selectinload(BriefingTemplate.project_type)
+                selectinload(TemplateVersion.requirements),
+                selectinload(TemplateVersion.template).selectinload(BriefingTemplate.project_type),
             )
             .where(and_(*filters))
             .order_by(
@@ -292,10 +336,11 @@ class TemplateService:
             select(TemplateVersion)
             .join(BriefingTemplate, TemplateVersion.template_id == BriefingTemplate.id)
             .options(
-                selectinload(TemplateVersion.template).selectinload(BriefingTemplate.project_type)
+                selectinload(TemplateVersion.requirements),
+                selectinload(TemplateVersion.template).selectinload(BriefingTemplate.project_type),
             )
             .where(
-                TemplateVersion.id == BriefingTemplate.current_version_id,
+                TemplateVersion.is_current == True,  # noqa: E712
                 TemplateVersion.is_active,
                 BriefingTemplate.is_global,
             )

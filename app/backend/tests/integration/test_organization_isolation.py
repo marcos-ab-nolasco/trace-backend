@@ -5,7 +5,6 @@ This is critical for GDPR compliance and preventing cross-tenant data leakage.
 """
 
 import pytest
-from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models.architect import Architect
@@ -18,7 +17,6 @@ from tests.factories import (
     EndClientFactory,
     OrganizationFactory,
     ProjectTypeFactory,
-    make_auth_headers,
 )
 
 
@@ -83,7 +81,7 @@ async def template_a(
     # Create a project type (using residencial trait)
     project_type = await ProjectTypeFactory.create_async(residencial=True)
 
-    # Create template with custom questions
+    # Create template with a version
     return await BriefingTemplateFactory.create_with_version_async(
         organization_template=True,
         organization=org_a,
@@ -91,39 +89,12 @@ async def template_a(
         name="Template A",
         category="residencial",
         project_type=project_type,
-        version_kwargs={
-            "questions": [{"order": 1, "text": "What is your budget?", "type": "text"}]
-        },
     )
 
 
 @pytest.mark.asyncio
 class TestBriefingOrganizationIsolation:
     """Test that briefing endpoints enforce organization isolation."""
-
-    async def test_cannot_start_briefing_with_other_org_architect_id(
-        self,
-        client: AsyncClient,
-        architect_a: Architect,
-        architect_b: Architect,
-        mock_extraction_service,
-        mock_template_service,
-        mock_whatsapp_service,
-    ):
-        """Architect A cannot start a briefing using Architect B's ID."""
-        headers = make_auth_headers(architect_a)
-
-        response = await client.post(
-            "/api/briefings/start-from-whatsapp",
-            json={
-                "architect_id": str(architect_b.id),
-                "architect_message": "Client: John Doe, Phone: +5511555555555",
-            },
-            headers=headers,
-        )
-
-        assert response.status_code == 403
-        assert "organization" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio

@@ -33,7 +33,6 @@ async def test_briefing(db_session):
     version = await TemplateVersionFactory.create_async(
         template_id=template.id,
         version_number=1,
-        questions=[],
         context_prompt="Test context",
     )
 
@@ -54,8 +53,6 @@ async def test_briefing(db_session):
     briefing = await BriefingFactory.create_async(
         end_client_id=end_client.id,
         template_version_id=version.id,
-        current_question_order=1,
-        answers={},
         information_state={},
         gathered_information={},
     )

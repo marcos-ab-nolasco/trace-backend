@@ -102,6 +102,9 @@ async def test_rate_limit_resets_after_window(client: AsyncClient) -> None:
     assert response.status_code != 429
 
 
+@pytest.mark.skip(
+    reason="Chat routes removed during conversational system refactor - will be reimplemented in Phase 2-3"
+)
 @pytest.mark.asyncio
 async def test_create_message_rate_limited_by_user(
     client: AsyncClient, test_user: Architect, auth_headers: dict[str, str]
@@ -138,6 +141,9 @@ async def test_create_message_rate_limited_by_user(
     assert response.status_code == 429, "11th request should be rate limited"
 
 
+@pytest.mark.skip(
+    reason="Chat routes removed during conversational system refactor - will be reimplemented in Phase 2-3"
+)
 @pytest.mark.asyncio
 async def test_different_users_have_separate_rate_limits(client: AsyncClient) -> None:
     """Different users should have independent rate limits.

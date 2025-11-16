@@ -35,7 +35,7 @@ async def list_templates(
         architect_id=architect_id, project_type_slug=project_type
     )
 
-    templates_with_versions = [BriefingTemplateWithVersion.model_validate(t) for t in templates]
+    templates_with_versions = [BriefingTemplateWithVersion.from_orm_model(t) for t in templates]
 
     return BriefingTemplateList(templates=templates_with_versions, total=len(templates))
 
@@ -57,7 +57,7 @@ async def create_template(
         template = await service.create_template(
             architect_id=architect_id, template_data=template_data
         )
-        return BriefingTemplateWithVersion.model_validate(template)
+        return BriefingTemplateWithVersion.from_orm_model(template)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
@@ -79,7 +79,7 @@ async def get_template(
     if not template:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Template not found")
 
-    return BriefingTemplateWithVersion.model_validate(template)
+    return BriefingTemplateWithVersion.from_orm_model(template)
 
 
 @router.put("/{template_id}", response_model=BriefingTemplateWithVersion)
@@ -100,7 +100,7 @@ async def update_template(
         template = await service.update_template(
             template_id=template_id, architect_id=architect_id, update_data=update_data
         )
-        return BriefingTemplateWithVersion.model_validate(template)
+        return BriefingTemplateWithVersion.from_orm_model(template)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
     except PermissionError as e:

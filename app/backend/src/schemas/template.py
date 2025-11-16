@@ -1,58 +1,33 @@
 """Pydantic schemas for briefing templates."""
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
+from src.schemas.information_requirement import (
+    InformationRequirementCreate,
+    InformationRequirementRead,
+)
 
-class QuestionSchema(BaseModel):
-    """Schema for a single question in a template."""
-
-    order: int = Field(..., ge=1, description="Question order (1-indexed)")
-    question: str = Field(..., min_length=1, description="Question text")
-    type: str = Field(..., description="Question type: text, number, multiple_choice")
-    options: list[str] | None = Field(None, description="Options for multiple_choice questions")
-    required: bool = Field(True, description="Whether question is required")
-    validation: dict[str, Any] | None = Field(
-        None, description="Validation rules (e.g., min, max for numbers)"
-    )
-    conditions: dict[str, Any] | None = Field(
-        None,
-        description="Conditional branching rules (Issue 1.1 infrastructure, evaluation in 2.2)",
-    )
-
-    @field_validator("type")
-    @classmethod
-    def validate_question_type(cls, v: str) -> str:
-        """Validate question type is one of allowed types."""
-        allowed_types = {"text", "number", "multiple_choice"}
-        if v not in allowed_types:
-            raise ValueError(f"Question type must be one of {allowed_types}")
-        return v
-
-    @field_validator("options")
-    @classmethod
-    def validate_options(cls, v: list[str] | None, info: ValidationInfo) -> list[str] | None:
-        """Validate options are provided for multiple_choice questions."""
-        question_type = info.data.get("type")
-        if question_type == "multiple_choice" and (not v or len(v) < 2):
-            raise ValueError("multiple_choice questions must have at least 2 options")
-        return v
+if TYPE_CHECKING:
+    from src.db.models.briefing_template import BriefingTemplate
+    from src.db.models.template_version import TemplateVersion
 
 
 class TemplateVersionBase(BaseModel):
     """Base schema for template version."""
 
-    questions: list[QuestionSchema] = Field(..., min_length=1)
     change_description: str | None = Field(None, max_length=500)
 
 
 class TemplateVersionCreate(TemplateVersionBase):
     """Schema for creating a new template version."""
 
-    pass
+    requirements: list[InformationRequirementCreate] = Field(
+        default_factory=list, description="Information requirements for this template"
+    )
 
 
 class TemplateVersionRead(TemplateVersionBase):
@@ -63,6 +38,9 @@ class TemplateVersionRead(TemplateVersionBase):
     version_number: int
     is_active: bool
     created_at: datetime
+    requirements: list[InformationRequirementRead] = Field(
+        default_factory=list, description="Information requirements for this template"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,7 +77,9 @@ class BriefingTemplateUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=255)
     description: str | None = None
-    questions: list[QuestionSchema] | None = Field(None, min_length=1)
+    requirements: list[InformationRequirementCreate] | None = Field(
+        None, description="Information requirements for this template"
+    )
     change_description: str | None = Field(None, max_length=500)
     project_type_slug: str | None = Field(
         None,
@@ -118,19 +98,62 @@ class BriefingTemplateRead(BriefingTemplateBase):
     category: str | None = Field(None, description="Legacy category field")
     organization_id: UUID | None
     created_by_architect_id: UUID | None
-    current_version_id: UUID | None
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class BriefingTemplateWithVersion(BriefingTemplateRead):
-    """Schema for template with current version details."""
+class BriefingTemplateWithVersion(BaseModel):
+    """Schema for template with current version details.
 
-    current_version: TemplateVersionRead | None = None
+    Note: current_version is computed from versions relationship by filtering for is_current=True.
+    The TemplateService should ensure versions are loaded via selectinload.
+    """
 
-    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    name: str
+    project_type_slug: str | None
+    description: str | None
+    is_global: bool
+    category: str | None
+    organization_id: UUID | None
+    created_by_architect_id: UUID | None
+    created_at: datetime
+    updated_at: datetime
+    current_version: TemplateVersionRead | None = Field(
+        None, description="Current version (computed from versions where is_current=True)"
+    )
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @classmethod
+    def from_orm_model(cls, obj: "BriefingTemplate") -> "BriefingTemplateWithVersion":
+        """Create instance from ORM model, computing current_version from versions."""
+        project_type_slug = obj.project_type.slug if obj.project_type else None
+
+        current_version_model: TemplateVersion | None = (
+            next((v for v in obj.versions if v.is_current), None) if obj.versions else None
+        )
+        current_version = (
+            TemplateVersionRead.model_validate(current_version_model)
+            if current_version_model
+            else None
+        )
+
+        return cls(
+            id=obj.id,
+            name=obj.name,
+            project_type_slug=project_type_slug,
+            description=obj.description,
+            is_global=obj.is_global,
+            category=obj.category,
+            organization_id=obj.organization_id,
+            created_by_architect_id=obj.created_by_architect_id,
+            created_at=obj.created_at,
+            updated_at=obj.updated_at,
+            current_version=current_version,
+        )
 
 
 class BriefingTemplateList(BaseModel):

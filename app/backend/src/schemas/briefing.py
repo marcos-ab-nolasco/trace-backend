@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.db.models.briefing import BriefingStatus
+from src.schemas.information_requirement import InformationRequirementRead
 
 
 class ExtractedClientInfo(BaseModel):
@@ -72,7 +73,12 @@ class BriefingRead(BriefingCreate):
     """Schema for reading a briefing."""
 
     id: UUID
-    answers: dict = Field(default_factory=dict, description="Question answers as JSONB")
+    information_state: dict = Field(
+        default_factory=dict, description="Current information gathering state"
+    )
+    gathered_information: dict = Field(
+        default_factory=dict, description="Information collected so far"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -104,7 +110,7 @@ class StartBriefingResponse(BaseModel):
     client_id: UUID = Field(..., description="ID of the end client")
     client_name: str = Field(..., description="Name of the end client")
     client_phone: str = Field(..., description="Phone number of the end client")
-    first_question: str = Field(..., description="First question sent to the client")
+    initial_message: str = Field(..., description="Initial message sent to the client")
     template_category: str = Field(..., description="Category of the template being used")
     whatsapp_message_id: str | None = Field(
         None, description="WhatsApp message ID if message was sent"
@@ -130,7 +136,9 @@ class TemplateInfoRead(BaseModel):
     id: UUID
     template_id: UUID
     version_number: int
-    questions: list
+    requirements: list[InformationRequirementRead] = Field(
+        default_factory=list, description="Information requirements for this template"
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -140,7 +148,6 @@ class BriefingListItem(BaseModel):
 
     id: UUID
     status: BriefingStatus
-    current_question_order: int
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None
@@ -160,15 +167,21 @@ class BriefingListResponse(BaseModel):
 
 
 class BriefingDetailRead(BaseModel):
-    """Schema for detailed briefing information."""
+    """Schema for detailed briefing information with conversation state."""
 
     id: UUID
     end_client_id: UUID
     template_version_id: UUID
-    conversation_id: UUID | None = None
     status: BriefingStatus
-    current_question_order: int
-    answers: dict = Field(default_factory=dict)
+    information_state: dict = Field(
+        default_factory=dict, description="Current state of information gathering"
+    )
+    gathered_information: dict = Field(
+        default_factory=dict, description="Information collected so far"
+    )
+    conversation_summary: str | None = Field(
+        None, description="AI-generated summary of conversation"
+    )
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None = None

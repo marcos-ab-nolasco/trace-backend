@@ -136,7 +136,7 @@ class TestBriefingFactory:
         briefing = await BriefingFactory.create_async(completed=True)
         assert briefing.status.value == "completed"
         assert briefing.completed_at is not None
-        assert len(briefing.answers) > 0
+        assert len(briefing.gathered_information) > 0
 
     async def test_create_cancelled_briefing(self) -> None:
         """Test creating a cancelled briefing."""

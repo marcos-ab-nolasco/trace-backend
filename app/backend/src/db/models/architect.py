@@ -12,7 +12,6 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.briefing_template import BriefingTemplate
-    from src.db.models.conversation import Conversation
     from src.db.models.end_client import EndClient
     from src.db.models.organization import Organization
 
@@ -49,9 +48,6 @@ class Architect(Base):
         "BriefingTemplate",
         back_populates="created_by",
         foreign_keys="BriefingTemplate.created_by_architect_id",
-    )
-    conversations: Mapped[list["Conversation"]] = relationship(
-        "Conversation", back_populates="architect", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

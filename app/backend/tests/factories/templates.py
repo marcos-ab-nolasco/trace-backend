@@ -3,6 +3,7 @@
 import factory
 
 from src.db.models.briefing_template import BriefingTemplate
+from src.db.models.information_requirement import InformationRequirement
 from src.db.models.project_type import ProjectType
 from src.db.models.template_version import TemplateVersion
 from tests.factories.auth import ArchitectFactory
@@ -41,6 +42,62 @@ class ProjectTypeFactory(AsyncSQLAlchemyFactory):
         )
 
 
+class InformationRequirementFactory(AsyncSQLAlchemyFactory):
+    """Factory for creating InformationRequirement instances."""
+
+    class Meta:
+        model = InformationRequirement
+
+    template_version = factory.SubFactory("tests.factories.templates.TemplateVersionFactory")
+    template_id = factory.LazyAttribute(lambda o: o.template_version.id)
+    field_name = factory.Sequence(lambda n: f"field_{n}")
+    field_type = "text"
+    required = True
+    priority = 5
+    description = factory.Faker("sentence")
+    validation_rules = factory.Dict({})
+    suggested_questions = factory.List([factory.Faker("sentence") for _ in range(2)])
+
+    class Params:
+        # Common field types as traits
+        budget_field = factory.Trait(
+            field_name="budget",
+            field_type="number",
+            required=True,
+            priority=9,
+            description="Client's budget for the project in BRL",
+            validation_rules={"min": 0, "unit": "BRL"},
+            suggested_questions=[
+                "Qual é o seu orçamento para o projeto?",
+                "Quanto você pretende investir neste projeto?",
+            ],
+        )
+        timeline_field = factory.Trait(
+            field_name="timeline",
+            field_type="text",
+            required=True,
+            priority=8,
+            description="Expected project timeline or deadline",
+            validation_rules={},
+            suggested_questions=[
+                "Qual é o prazo desejado para conclusão?",
+                "Quando você precisa que o projeto esteja pronto?",
+            ],
+        )
+        property_type_field = factory.Trait(
+            field_name="property_type",
+            field_type="text",
+            required=True,
+            priority=10,
+            description="Type of property (house, apartment, commercial, etc.)",
+            validation_rules={},
+            suggested_questions=[
+                "Qual tipo de imóvel?",
+                "O imóvel é casa ou apartamento?",
+            ],
+        )
+
+
 class TemplateVersionFactory(AsyncSQLAlchemyFactory):
     """Factory for creating TemplateVersion instances."""
 
@@ -50,59 +107,10 @@ class TemplateVersionFactory(AsyncSQLAlchemyFactory):
     template = factory.SubFactory("tests.factories.templates.BriefingTemplateFactory")
     template_id = factory.LazyAttribute(lambda o: o.template.id)
     version_number = 1
-    questions = factory.LazyFunction(
-        lambda: [
-            {
-                "order": 1,
-                "question": "Qual tipo de imóvel?",
-                "type": "text",
-                "required": True,
-            },
-            {
-                "order": 2,
-                "question": "Quantos quartos?",
-                "type": "text",
-                "required": True,
-            },
-            {
-                "order": 3,
-                "question": "Possui terreno?",
-                "type": "text",
-                "required": True,
-            },
-        ]
-    )
     change_description = None
     is_active = True
+    is_current = False  # Set to True for current versions
     context_prompt = None
-
-    class Params:
-        # Trait: Version with conditional questions
-        with_conditions = factory.Trait(
-            questions=factory.LazyFunction(
-                lambda: [
-                    {
-                        "order": 1,
-                        "question": "Qual tipo de projeto?",
-                        "type": "text",
-                        "required": True,
-                    },
-                    {
-                        "order": 2,
-                        "question": "É reforma?",
-                        "type": "boolean",
-                        "required": True,
-                    },
-                    {
-                        "order": 3,
-                        "question": "Qual o escopo da reforma?",
-                        "type": "text",
-                        "required": True,
-                        "condition": {"question_order": 2, "expected": "sim"},
-                    },
-                ]
-            )
-        )
 
 
 class BriefingTemplateFactory(AsyncSQLAlchemyFactory):
@@ -127,37 +135,34 @@ class BriefingTemplateFactory(AsyncSQLAlchemyFactory):
     created_by_architect_id = None
     project_type = None  # Should be passed from fixture
     project_type_id = factory.LazyAttribute(lambda o: o.project_type.id if o.project_type else None)
-    current_version_id = None
 
     @classmethod
     async def create_with_version_async(cls, version_kwargs: dict | None = None, **template_kwargs) -> "BriefingTemplate":  # type: ignore[name-defined]
         """Create a template with a version in one async operation.
 
         Args:
-            version_kwargs: Kwargs for TemplateVersion (questions, version_number, etc.)
+            version_kwargs: Kwargs for TemplateVersion (requirements, version_number, etc.)
             **template_kwargs: Kwargs for BriefingTemplate
 
         Returns:
-            BriefingTemplate with current_version set
+            BriefingTemplate with current version set (via is_current flag)
         """
         from sqlalchemy.ext.asyncio import AsyncSession
 
         # Create template
         template = await cls.create_async(**template_kwargs)
 
-        # Create version
+        # Create version with is_current=True
         version_data = version_kwargs or {}
+        version_data.setdefault("is_current", True)
         version = await TemplateVersionFactory.create_async(
             template=template,
             template_id=template.id,
             **version_data,
         )
 
-        # Update template's current_version_id
+        # Refresh template to get the version relationship
         session: AsyncSession = cls._meta.sqlalchemy_session
-        template.current_version_id = version.id
-        session.add(template)
-        await session.commit()
         await session.refresh(template)
 
         return template

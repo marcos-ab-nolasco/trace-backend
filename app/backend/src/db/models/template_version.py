@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, Uuid, func
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.session import Base
@@ -27,11 +26,13 @@ class TemplateVersion(Base):
         Uuid, ForeignKey("briefing_templates.id", ondelete="CASCADE"), index=True
     )
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
-    questions: Mapped[list] = mapped_column(JSONB, nullable=False)
     change_description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
-    # NEW: AI context for conversational briefing
+    # Replaces circular reference: BriefingTemplate.current_version_id
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    # AI context for conversational briefing
     context_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

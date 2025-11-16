@@ -37,7 +37,9 @@ class BriefingTemplate(Base):
     project_type_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("project_types.id", ondelete="SET NULL"), index=True, nullable=True
     )
-    current_version_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+
+    # REMOVED: Circular reference replaced by TemplateVersion.is_current flag
+    # current_version_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -67,13 +69,19 @@ class BriefingTemplate(Base):
         cascade="all, delete-orphan",
         foreign_keys="TemplateVersion.template_id",
     )
-    current_version: Mapped["TemplateVersion | None"] = relationship(
-        "TemplateVersion",
-        primaryjoin="BriefingTemplate.current_version_id == TemplateVersion.id",
-        foreign_keys="[BriefingTemplate.current_version_id]",
-        post_update=True,
-        uselist=False,
-    )
+
+    # REMOVED: Circular reference replaced by helper method below
+    # current_version: Mapped["TemplateVersion | None"] = relationship(
+    #     "TemplateVersion",
+    #     primaryjoin="BriefingTemplate.current_version_id == TemplateVersion.id",
+    #     foreign_keys="[BriefingTemplate.current_version_id]",
+    #     post_update=True,
+    #     uselist=False,
+    # )
+
+    def get_current_version(self) -> "TemplateVersion | None":
+        """Get the current version using is_current flag instead of circular reference."""
+        return next((v for v in self.versions if v.is_current), None)
 
     def __repr__(self) -> str:
         return f"<BriefingTemplate(id={self.id}, name={self.name})>"

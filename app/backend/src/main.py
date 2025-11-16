@@ -8,7 +8,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
-from src.api import auth, briefings, chat, organizations, templates, whatsapp_webhook
+from src.api import auth, briefings, organizations, templates, whatsapp_webhook
 from src.core.cache import client as cache_client
 from src.core.config import get_settings
 from src.core.lifespan import lifespan
@@ -48,7 +48,6 @@ app.add_middleware(LoggingMiddleware)
 
 app.include_router(auth.router)
 app.include_router(briefings.router)
-app.include_router(chat.router)
 app.include_router(organizations.router)
 app.include_router(templates.router)
 app.include_router(whatsapp_webhook.router)

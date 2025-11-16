@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 
 from src.core.cache.decorator import redis_cache_decorator
 from src.core.config import get_settings
-from src.schemas.chat import AIModelOption, AIProvider
+from src.schemas.ai import AIModelOption, AIProvider
 
 from .anthropic_service import AnthropicService
 from .base import BaseAIService

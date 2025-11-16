@@ -23,7 +23,6 @@ class WhatsAppSessionFactory(AsyncSQLAlchemyFactory):
     briefing_id = factory.LazyAttribute(lambda o: o.briefing.id if o.briefing else None)
     phone_number = factory.LazyAttribute(lambda o: o.end_client.phone)
     status = SessionStatus.ACTIVE.value
-    current_question_index = 1
     meta = None
 
     class Params:

@@ -33,11 +33,7 @@ async def test_create_information_requirement(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(
-        template_id=template.id,
-        version_number=1,
-        questions=[],  # Will be deprecated
-    )
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
     await db_session.refresh(version)
@@ -78,7 +74,7 @@ async def test_information_requirement_template_relationship(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(template_id=template.id, version_number=1, questions=[])
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
     await db_session.refresh(version)
@@ -120,7 +116,7 @@ async def test_information_requirement_optional_fields(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(template_id=template.id, version_number=1, questions=[])
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
 
@@ -172,7 +168,7 @@ async def test_create_conversation_message(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(template_id=template.id, version_number=1, questions=[])
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
 
@@ -236,7 +232,7 @@ async def test_conversation_message_briefing_relationship(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(template_id=template.id, version_number=1, questions=[])
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
 
@@ -296,7 +292,7 @@ async def test_conversation_message_cascade_delete(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(template_id=template.id, version_number=1, questions=[])
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
 
@@ -360,7 +356,7 @@ async def test_briefing_with_information_state(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(template_id=template.id, version_number=1, questions=[])
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
 
@@ -414,7 +410,7 @@ async def test_briefing_with_gathered_information(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(template_id=template.id, version_number=1, questions=[])
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
 
@@ -473,7 +469,7 @@ async def test_briefing_with_conversation_summary(db_session):
     db_session.add(template)
     await db_session.commit()
 
-    version = TemplateVersion(template_id=template.id, version_number=1, questions=[])
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
 
@@ -510,7 +506,6 @@ async def test_template_version_with_context_prompt(db_session):
     version = TemplateVersion(
         template_id=template.id,
         version_number=1,
-        questions=[],
         context_prompt="You are gathering information for a residential renovation project. Be friendly and professional.",
     )
     db_session.add(version)
@@ -560,7 +555,6 @@ async def test_full_conversational_workflow(db_session):
     version = TemplateVersion(
         template_id=template.id,
         version_number=1,
-        questions=[],  # Legacy field
         context_prompt="Gather information for residential projects.",
     )
     db_session.add(version)

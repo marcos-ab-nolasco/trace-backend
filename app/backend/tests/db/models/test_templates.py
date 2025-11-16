@@ -33,7 +33,6 @@ async def test_create_global_template(db_session):
     assert template.is_global is True
     assert template.organization_id is None
     assert template.created_by_architect_id is None
-    assert template.current_version_id is None
     assert isinstance(template.created_at, datetime)
 
 
@@ -102,67 +101,70 @@ async def test_template_with_project_type(db_session):
 @pytest.mark.asyncio
 async def test_create_template_version(db_session):
     """Test creating a template version."""
+    from src.db.models.information_requirement import InformationRequirement
+
     template = BriefingTemplate(name="Test Template", category="construcao", is_global=True)
     db_session.add(template)
     await db_session.commit()
     await db_session.refresh(template)
 
-    questions = [
-        {
-            "order": 1,
-            "question": "Qual o tipo de construção?",
-            "type": "multiple_choice",
-            "options": ["Casa", "Apartamento", "Comercial"],
-            "required": True,
-        },
-        {
-            "order": 2,
-            "question": "Qual a área aproximada em m²?",
-            "type": "number",
-            "required": True,
-        },
-    ]
-
     version = TemplateVersion(
         template_id=template.id,
         version_number=1,
-        questions=questions,
         change_description="Versão inicial",
+        is_current=True,
     )
     db_session.add(version)
     await db_session.commit()
     await db_session.refresh(version)
 
+    # Create information requirements instead of questions
+    req1 = InformationRequirement(
+        template_id=version.id,
+        field_name="property_type",
+        field_type="text",
+        required=True,
+        priority=10,
+        suggested_questions=["Qual o tipo de construção?"],
+    )
+    req2 = InformationRequirement(
+        template_id=version.id,
+        field_name="area",
+        field_type="number",
+        required=True,
+        priority=9,
+        suggested_questions=["Qual a área aproximada em m²?"],
+    )
+    db_session.add_all([req1, req2])
+    await db_session.commit()
+    await db_session.refresh(version, ["requirements"])
+
     assert isinstance(version.id, UUID)
     assert version.template_id == template.id
     assert version.version_number == 1
-    assert len(version.questions) == 2
-    assert version.questions[0]["question"] == "Qual o tipo de construção?"
+    assert len(version.requirements) == 2
+    assert version.requirements[0].field_name in ["property_type", "area"]
     assert version.is_active is True
     assert isinstance(version.created_at, datetime)
 
 
 @pytest.mark.asyncio
 async def test_template_current_version_relationship(db_session):
-    """Test template current_version relationship."""
+    """Test template current_version relationship using is_current flag."""
     template = BriefingTemplate(name="Versioned Template", category="paisagismo", is_global=True)
     db_session.add(template)
     await db_session.commit()
     await db_session.refresh(template)
 
-    version1 = TemplateVersion(
-        template_id=template.id, version_number=1, questions=[{"order": 1, "question": "Q1"}]
-    )
+    version1 = TemplateVersion(template_id=template.id, version_number=1, is_current=True)
     db_session.add(version1)
     await db_session.commit()
-    await db_session.refresh(version1)
+    await db_session.refresh(template, ["versions"])
 
-    template.current_version_id = version1.id
-    await db_session.commit()
-    await db_session.refresh(template, ["current_version"])
-
-    assert template.current_version.id == version1.id
-    assert template.current_version.version_number == 1
+    current_version = template.get_current_version()
+    assert current_version is not None
+    assert current_version.id == version1.id
+    assert current_version.version_number == 1
 
 
 @pytest.mark.asyncio
@@ -173,12 +175,8 @@ async def test_template_versions_relationship(db_session):
     await db_session.commit()
     await db_session.refresh(template)
 
-    version1 = TemplateVersion(
-        template_id=template.id, version_number=1, questions=[{"order": 1, "question": "V1"}]
-    )
-    version2 = TemplateVersion(
-        template_id=template.id, version_number=2, questions=[{"order": 1, "question": "V2"}]
-    )
+    version1 = TemplateVersion(template_id=template.id, version_number=1, is_current=False)
+    version2 = TemplateVersion(template_id=template.id, version_number=2, is_current=True)
     db_session.add_all([version1, version2])
     await db_session.commit()
 
@@ -196,26 +194,26 @@ async def test_template_version_deactivation(db_session):
     await db_session.commit()
     await db_session.refresh(template)
 
-    version1 = TemplateVersion(
-        template_id=template.id, version_number=1, questions=[{"order": 1, "question": "V1"}]
-    )
+    version1 = TemplateVersion(template_id=template.id, version_number=1, is_current=True)
     db_session.add(version1)
     await db_session.commit()
     await db_session.refresh(version1)
 
     assert version1.is_active is True
+    assert version1.is_current is True
 
-    version2 = TemplateVersion(
-        template_id=template.id, version_number=2, questions=[{"order": 1, "question": "V2"}]
-    )
+    version2 = TemplateVersion(template_id=template.id, version_number=2, is_current=True)
     version1.is_active = False
+    version1.is_current = False
     db_session.add(version2)
     await db_session.commit()
     await db_session.refresh(version1)
     await db_session.refresh(version2)
 
     assert version1.is_active is False
+    assert version1.is_current is False
     assert version2.is_active is True
+    assert version2.is_current is True
 
 
 @pytest.mark.asyncio
@@ -291,9 +289,7 @@ async def test_cascade_delete_template_versions(db_session):
     await db_session.commit()
     await db_session.refresh(template)
 
-    version = TemplateVersion(
-        template_id=template.id, version_number=1, questions=[{"order": 1, "question": "Q1"}]
-    )
+    version = TemplateVersion(template_id=template.id, version_number=1)
     db_session.add(version)
     await db_session.commit()
     version_id = version.id

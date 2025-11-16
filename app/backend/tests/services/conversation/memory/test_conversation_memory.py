@@ -42,7 +42,6 @@ async def test_briefing(db_session, test_project_type):
     version = await TemplateVersionFactory.create_async(
         template_id=template.id,
         version_number=1,
-        questions=[],
         context_prompt="Test context",
     )
 
@@ -63,8 +62,6 @@ async def test_briefing(db_session, test_project_type):
     briefing = await BriefingFactory.create_async(
         end_client_id=end_client.id,
         template_version_id=version.id,
-        current_question_order=1,
-        answers={},
         information_state={},
         gathered_information={},
     )
@@ -334,8 +331,6 @@ class TestConversationMemory:
         other_briefing = await BriefingFactory.create_async(
             end_client_id=test_briefing.end_client_id,
             template_version_id=test_briefing.template_version_id,
-            current_question_order=1,
-            answers={},
             information_state={},
             gathered_information={},
         )

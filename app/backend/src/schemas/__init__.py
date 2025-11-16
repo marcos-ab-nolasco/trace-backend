@@ -1,30 +1,32 @@
 from src.schemas.architect import ArchitectCreate, ArchitectRead
 from src.schemas.auth import Token
-from src.schemas.chat import (
-    AIProvider,
-    AIProviderList,
-    ConversationCreate,
-    ConversationList,
-    ConversationRead,
-    ConversationUpdate,
-    MessageCreate,
-    MessageCreateResponse,
-    MessageList,
-    MessageRead,
+from src.schemas.information_requirement import (
+    InformationRequirementCreate,
+    InformationRequirementRead,
+    InformationRequirementUpdate,
+)
+from src.schemas.information_state import (
+    AIMetadata,
+    ExtractedInfo,
+    FieldState,
+    GatheredField,
+    GatheredInformationDict,
+    InformationStateDict,
 )
 
 __all__ = [
     "Token",
     "ArchitectCreate",
     "ArchitectRead",
-    "ConversationCreate",
-    "ConversationRead",
-    "ConversationUpdate",
-    "ConversationList",
-    "MessageCreate",
-    "MessageRead",
-    "MessageList",
-    "MessageCreateResponse",
-    "AIProvider",
-    "AIProviderList",
+    # Information requirement schemas
+    "InformationRequirementCreate",
+    "InformationRequirementRead",
+    "InformationRequirementUpdate",
+    # Information state schemas for conversational AI
+    "FieldState",
+    "GatheredField",
+    "ExtractedInfo",
+    "AIMetadata",
+    "InformationStateDict",
+    "GatheredInformationDict",
 ]

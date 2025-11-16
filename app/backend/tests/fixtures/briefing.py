@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.models.briefing import Briefing
 from src.db.models.briefing_template import BriefingTemplate
 from src.db.models.end_client import EndClient
+from src.db.models.information_requirement import InformationRequirement
 from src.db.models.project_type import ProjectType
 from src.db.models.template_version import TemplateVersion
 from src.db.models.whatsapp_session import WhatsAppSession
@@ -15,7 +16,7 @@ from src.db.models.whatsapp_session import WhatsAppSession
 async def template_version_simple(
     db_session: AsyncSession, test_project_type: ProjectType
 ) -> TemplateVersion:
-    """Create simple template version with sequential questions for testing progression."""
+    """Create simple template version with information requirements for testing."""
     template = BriefingTemplate(
         name="Test Template Progression",
         project_type_id=test_project_type.id,
@@ -27,32 +28,45 @@ async def template_version_simple(
     version = TemplateVersion(
         template_id=template.id,
         version_number=1,
-        questions=[
-            {
-                "order": 1,
-                "question": "Qual é o tipo de imóvel?",
-                "type": "text",
-                "required": True,
-            },
-            {
-                "order": 2,
-                "question": "Qual é o orçamento disponível?",
-                "type": "text",
-                "required": True,
-            },
-            {
-                "order": 3,
-                "question": "Qual é o prazo desejado?",
-                "type": "text",
-                "required": False,
-            },
-        ],
         is_active=True,
+        is_current=True,
     )
     db_session.add(version)
     await db_session.flush()
 
-    template.current_version_id = version.id
+    # Create information requirements
+    requirements = [
+        InformationRequirement(
+            template_id=version.id,
+            field_name="property_type",
+            field_type="text",
+            required=True,
+            priority=10,
+            description="Type of property",
+            suggested_questions=["Qual é o tipo de imóvel?"],
+        ),
+        InformationRequirement(
+            template_id=version.id,
+            field_name="budget",
+            field_type="number",
+            required=True,
+            priority=9,
+            description="Available budget",
+            suggested_questions=["Qual é o orçamento disponível?"],
+        ),
+        InformationRequirement(
+            template_id=version.id,
+            field_name="timeline",
+            field_type="text",
+            required=False,
+            priority=5,
+            description="Desired timeline",
+            suggested_questions=["Qual é o prazo desejado?"],
+        ),
+    ]
+    for req in requirements:
+        db_session.add(req)
+
     await db_session.commit()
     await db_session.refresh(version)
     return version
@@ -62,7 +76,7 @@ async def template_version_simple(
 async def template_with_conditions(
     db_session: AsyncSession, test_project_type: ProjectType
 ) -> TemplateVersion:
-    """Create template version with conditional questions for testing branching infrastructure."""
+    """Create template version with requirements (conditions handled by AI now)."""
     template = BriefingTemplate(
         name="Test Template with Conditions",
         project_type_id=test_project_type.id,
@@ -74,40 +88,45 @@ async def template_with_conditions(
     version = TemplateVersion(
         template_id=template.id,
         version_number=1,
-        questions=[
-            {
-                "order": 1,
-                "question": "É residencial ou comercial?",
-                "type": "text",
-                "required": True,
-            },
-            {
-                "order": 2,
-                "question": "Quantos quartos?",
-                "type": "text",
-                "required": True,
-                "conditions": {
-                    "depends_on_order": 1,
-                    "answer_contains": "residencial",
-                },
-            },
-            {
-                "order": 3,
-                "question": "Qual o metragem comercial?",
-                "type": "text",
-                "required": True,
-                "conditions": {
-                    "depends_on_order": 1,
-                    "answer_contains": "comercial",
-                },
-            },
-        ],
         is_active=True,
+        is_current=True,
     )
     db_session.add(version)
     await db_session.flush()
 
-    template.current_version_id = version.id
+    # Create information requirements
+    requirements = [
+        InformationRequirement(
+            template_id=version.id,
+            field_name="property_category",
+            field_type="text",
+            required=True,
+            priority=10,
+            description="Property category (residential or commercial)",
+            suggested_questions=["É residencial ou comercial?"],
+        ),
+        InformationRequirement(
+            template_id=version.id,
+            field_name="rooms",
+            field_type="number",
+            required=False,
+            priority=8,
+            description="Number of rooms (for residential)",
+            suggested_questions=["Quantos quartos?"],
+        ),
+        InformationRequirement(
+            template_id=version.id,
+            field_name="commercial_area",
+            field_type="number",
+            required=False,
+            priority=8,
+            description="Commercial area in square meters",
+            suggested_questions=["Qual a metragem comercial?"],
+        ),
+    ]
+    for req in requirements:
+        db_session.add(req)
+
     await db_session.commit()
     await db_session.refresh(version)
     return version
@@ -123,8 +142,8 @@ async def test_briefing(
     briefing = Briefing(
         end_client_id=test_end_client.id,
         template_version_id=template_version_simple.id,
-        current_question_order=1,
-        answers={},
+        information_state={},
+        gathered_information={},
         status="IN_PROGRESS",
     )
     db_session.add(briefing)
@@ -164,8 +183,8 @@ async def briefing_with_session(
     briefing = await BriefingFactory.create_async(
         end_client=test_end_client,
         template_version=template_version_simple,
-        current_question_order=1,
-        answers={},
+        information_state={},
+        gathered_information={},
         status="IN_PROGRESS",
     )
 

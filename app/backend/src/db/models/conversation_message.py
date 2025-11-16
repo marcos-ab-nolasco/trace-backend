@@ -1,5 +1,7 @@
 """ConversationMessage model for storing full conversation history for AI context."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -12,6 +14,7 @@ from src.db.session import Base
 
 if TYPE_CHECKING:
     from src.db.models.briefing import Briefing
+    from src.schemas.information_state import AIMetadata, ExtractedInfo
 
 
 class ConversationMessage(Base):
@@ -47,10 +50,38 @@ class ConversationMessage(Base):
     )
 
     # Relationships
-    briefing: Mapped["Briefing"] = relationship("Briefing", back_populates="conversation_messages")
+    briefing: Mapped[Briefing] = relationship("Briefing", back_populates="conversation_messages")
 
     def __repr__(self) -> str:
         """String representation of ConversationMessage."""
         return (
             f"<ConversationMessage(id={self.id}, role={self.role}, briefing_id={self.briefing_id})>"
         )
+
+    # Type-safe accessors for JSONB fields using Pydantic schemas
+
+    def get_extracted_info(self) -> ExtractedInfo | None:
+        """Get typed extracted info using Pydantic validation."""
+        if not self.extracted_info:
+            return None
+
+        from src.schemas.information_state import ExtractedInfo
+
+        return ExtractedInfo(**self.extracted_info)
+
+    def set_extracted_info(self, info: ExtractedInfo) -> None:
+        """Set extracted info with Pydantic validation."""
+        self.extracted_info = info.model_dump()
+
+    def get_ai_metadata(self) -> AIMetadata | None:
+        """Get typed AI metadata using Pydantic validation."""
+        if not self.ai_metadata:
+            return None
+
+        from src.schemas.information_state import AIMetadata
+
+        return AIMetadata(**self.ai_metadata)
+
+    def set_ai_metadata(self, metadata: AIMetadata) -> None:
+        """Set AI metadata with Pydantic validation."""
+        self.ai_metadata = metadata.model_dump()

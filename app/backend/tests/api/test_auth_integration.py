@@ -11,6 +11,9 @@ from src.db.models.architect import Architect
 from tests.factories import ArchitectFactory, make_auth_headers
 
 
+@pytest.mark.skip(
+    reason="Chat routes removed during conversational system refactor - will be reimplemented in Phase 2-3"
+)
 @pytest.mark.asyncio
 async def test_multiple_requests_from_same_user_use_cache(
     client: AsyncClient,
@@ -74,6 +77,9 @@ async def test_different_users_have_isolated_cache(
     assert data["full_name"] == test_user.full_name
 
 
+@pytest.mark.skip(
+    reason="Chat routes removed during conversational system refactor - will be reimplemented in Phase 2-3"
+)
 @pytest.mark.asyncio
 async def test_token_refresh_does_not_break_cache(
     client: AsyncClient,
