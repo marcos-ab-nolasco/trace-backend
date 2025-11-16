@@ -11,6 +11,7 @@ from src.db.models.briefing import Briefing
 from src.db.models.conversation_message import ConversationMessage
 from src.services.ai.base import BaseAIService
 from src.services.conversation.memory.token_counter import TokenCounter
+from src.services.conversation.memory.vector_store import VectorStore
 
 
 class ConversationMemory:
@@ -23,6 +24,7 @@ class ConversationMemory:
         ai_service: BaseAIService,
         context_window_tokens: int = 4000,
         model_name: str = "gpt-4o-mini",
+        vector_store: VectorStore | None = None,
     ) -> None:
         """Initialize ConversationMemory service.
 
@@ -32,6 +34,7 @@ class ConversationMemory:
             ai_service: AI service instance for generating summaries
             context_window_tokens: Maximum tokens for context window (default: 4000)
             model_name: Model name for token counting (default: "gpt-4o-mini")
+            vector_store: Optional VectorStore for semantic search over messages
         """
         self.db_session = db_session
         self.briefing_id = briefing_id
@@ -39,6 +42,7 @@ class ConversationMemory:
         self.context_window_tokens = context_window_tokens
         self.model_name = model_name
         self.token_counter = TokenCounter(model_name=model_name)
+        self.vector_store = vector_store
 
     async def add_message(
         self,
@@ -47,7 +51,7 @@ class ConversationMemory:
         extracted_info: dict[str, Any] | None = None,
         ai_metadata: dict[str, Any] | None = None,
     ) -> UUID:
-        """Add a new message to the conversation.
+        """Add a new message to the conversation and vector store.
 
         Args:
             role: Message role ("user" or "assistant")
@@ -70,6 +74,18 @@ class ConversationMemory:
         self.db_session.add(message)
         await self.db_session.commit()
         await self.db_session.refresh(message)
+
+        # Store embedding in vector store if available
+        if self.vector_store:
+            await self.vector_store.add_message(
+                message_id=str(message.id),
+                content=content,
+                metadata={
+                    "briefing_id": str(self.briefing_id),
+                    "role": role,
+                    "timestamp": message.timestamp.isoformat(),
+                },
+            )
 
         return message.id
 
@@ -203,3 +219,26 @@ class ConversationMemory:
         )
 
         return truncated
+
+    async def search_context(
+        self,
+        query: str,
+        limit: int = 5,
+    ) -> list[dict[str, Any]]:
+        """Search for relevant context using semantic similarity.
+
+        Args:
+            query: Search query text
+            limit: Maximum number of results to return
+
+        Returns:
+            List of semantically similar messages, or empty list if no vector store
+        """
+        if not self.vector_store:
+            return []
+
+        return await self.vector_store.search_similar(
+            query=query,
+            briefing_id=self.briefing_id,
+            limit=limit,
+        )

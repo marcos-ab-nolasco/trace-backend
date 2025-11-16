@@ -59,6 +59,9 @@ logs/
 *.sqlite
 *.sqlite3
 
+# ChromaDB vector store
+app/backend/data/chromadb/
+
 # Redis
 dump.rdb
 
